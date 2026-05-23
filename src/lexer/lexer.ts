@@ -72,8 +72,8 @@ export class Lexer {
             return;
         }
 
-        
-        if (this.peek() === '"') {
+        // Strings
+        if (this.peek() === '"' || this.peek() === "'") {
             this.scanString();
             return;
         }
@@ -333,11 +333,10 @@ export class Lexer {
     private scanString(): void {
         const startLine = this.line;
         const startColumn = this.column;
-
-        this.advance(); 
+        const quote = this.advance(); // Consume and get the quote that started the string
 
         let value = "";
-        while (!this.isAtEnd() && this.peek() !== '"') {
+        while (!this.isAtEnd() && this.peek() !== quote) {
             if (this.peek() === "\\") {
                 this.advance(); 
                 if (!this.isAtEnd()) {
@@ -359,6 +358,9 @@ export class Lexer {
                         case '"':
                             value += '"';
                             break;
+                        case "'":
+                            value += "'";
+                            break;
                         default:
                             value += escaped;
                             break;
@@ -374,7 +376,7 @@ export class Lexer {
             }
         }
 
-        if (!this.isAtEnd() && this.peek() === '"') {
+        if (!this.isAtEnd() && this.peek() === quote) {
             this.advance(); 
         }
 

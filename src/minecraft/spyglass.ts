@@ -397,12 +397,19 @@ export class SpyglassManager {
             parser === "minecraft:game_profile"
         ) {
             const isScoreHolder = parser === "minecraft:score_holder";
+            
+            let workToken = token;
+            if ((workToken.startsWith('"') && workToken.endsWith('"')) || 
+                (workToken.startsWith("'") && workToken.endsWith("'"))) {
+                workToken = workToken.substring(1, workToken.length - 1);
+            }
+
             const nameRegex = isScoreHolder
                 ? /^#?[a-zA-Z0-9_.+\-]+$/
                 : /^[a-zA-Z0-9_]+$/;
-            const isWildcard = isScoreHolder && token === "*";
-            if (token.startsWith("@")) {
-                if (!/^@[aeprsn](\[.*\])?$/.test(token)) {
+            const isWildcard = isScoreHolder && workToken === "*";
+            if (workToken.startsWith("@")) {
+                if (!/^@[aeprsn](\[.*\])?$/.test(workToken)) {
                     return {
                         start: offset,
                         length: token.length,
@@ -413,7 +420,7 @@ export class SpyglassManager {
                         severity: "warning",
                     };
                 }
-            } else if (!isWildcard && !nameRegex.test(token)) {
+            } else if (!isWildcard && !nameRegex.test(workToken)) {
                 return {
                     start: offset,
                     length: token.length,

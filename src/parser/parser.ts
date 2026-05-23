@@ -808,13 +808,13 @@ export class Parser {
             };
         }
 
-        
+        // String literal
         if (this.match(TokenType.StringLiteral)) {
             const token = this.previous();
             return {
                 type: "StringLiteral",
                 value: token.value,
-                raw: `"${token.value}"`,
+                raw: this.getSourceText(token.range),
                 range: token.range,
             };
         }

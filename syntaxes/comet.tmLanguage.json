@@ -50,13 +50,28 @@
       ]
     },
     "strings": {
-      "name": "string.quoted.double.comet",
-      "begin": "\"",
-      "end": "\"",
       "patterns": [
         {
-          "name": "constant.character.escape.comet",
-          "match": "\\\\."
+          "name": "string.quoted.double.comet",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.comet",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.comet",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.comet",
+              "match": "\\\\."
+            }
+          ]
         }
       ]
     },

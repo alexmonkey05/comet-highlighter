@@ -1,0 +1,366 @@
+# DBMS 역할
+
+
+# 이벤트 시스템 설계
+    # -1 : 턴 플레이어가 이 카드를 손에 들고 우클릭
+
+    # 1000 : 필드에서 발동
+    # 2000 : 손패에서 발동
+    # 3000 : 묘지에서 발동
+    # 4000 : 제외존에서 발동
+    # 5000 : 패산에서 발동
+
+    # 0100 : 카드 효과 발동
+    # 0200 : 몬스터 공격
+
+    # 0001 : 피해
+    # 0002 : 회복
+    # 0003 : 카드 드로우
+    # 0004 : 효과 무효
+    # 0005 : 몬스터 이동
+
+# 예시
+    # 1100 : 필드에서 카드 효과 발동 -> 필드에서 발행한 카드 효과기만 하면 대응 가능. 어떤 효과인지는 상관 x
+    # 2101 : 손패에서 데미지 카드 효과 발동
+    # 3100 : 묘지에서 카드 효과 발동
+
+### 순서도
+# Player Action = 카드 발동 -> 카드 Resolve 효과 보고 이벤트 발생
+#     ↓
+# Action 연출 재생
+#     ↓
+# Event 발생
+#     ↓
+# Event Queue
+#     ↓
+# Trigger Scan
+#     ↓
+# Pending Trigger Queue
+#     ↓
+# Priority Passing
+#     ↓
+# 현재 Chain에 Link 추가(Player Action)
+#     ↓
+# 양측 패스
+#     ↓
+# Resolve 시작
+#     ↓
+# Resolve 연출 재생
+#     ↓
+# Resolve 효과 처리
+
+
+### 카드, 이벤트, 체인 데이터 스키마
+# 카드
+    # interface Card {
+
+    #     id: string
+    #     name: string
+
+    #     ownerId: string
+
+    #     zone: Zone   // hand / field / grave / deck
+
+    #     // === 핵심 ===
+    #     effects: CardEffect[]
+    # }
+
+    # interface CardEffect {
+
+    #     id: string
+
+    #     // 1. 발동 조건 (어디서/언제)
+    #     activation: {
+    #         zones: Zone[]        // hand / field / grave etc
+    #         timing: Timing       // trigger / quick / ignition
+    #         spellSpeed: number
+    #     }
+
+    #     // 2. 반응 조건 (이벤트 필터) card_criteria.json 참고 (어떤 이벤트에 발동 가능한가) (재귀 가능하게 할 것)
+    #     trigger?: ConditionNode
+
+    #     // 3. 비용
+    #     cost?: Cost[]
+
+    #     // 4. 대상 규칙
+    #     target?: TargetRule
+
+    #     // 5. 실제 효과 정의
+    #     resolve: Effect[]
+    # }
+
+# 이벤트
+    # interface GameEvent {
+
+    #     id: string
+
+    #     type: GameEventType
+
+    #     tick: number
+
+    #     // === 핵심 ===
+    #     source?: {
+    #         cardId?: string
+    #         playerId?: string
+    #         zone?: Zone
+    #     }
+
+    #     // === 추가 데이터 ===
+    #     data?: Record<string, any>
+    # }
+
+# 체인
+    # interface ChainLink {
+
+    #     id: string
+
+    #     // === 원인 이벤트 ===
+    #     triggerEvent: GameEvent
+
+    #     // === 발동 주체 ===
+    #     sourceCardId: string
+    #     controllerId: string
+
+    #     // === 스냅샷 (중요) === (체인에 올라갈 때의 게임 상태 저장, 효과 처리할 때 참조)
+    #     snapshot: {
+    #         zone: Zone
+    #         stats?: Record<string, any>
+
+    #     }
+
+    #     // === 실행 여부 ===
+    #     isValid: boolean
+
+    #     // === 실행할 효과 ===
+    #     effect: EffectExecution
+
+    #     // === 대상 (고정됨) ===
+    #     targets?: Target[]
+    # }
+
+    # interface EffectExecution {
+
+    #     type: string
+
+    #     params?: Record<string, any>
+    # }
+
+
+/scoreboard players set #1000 num 1000
+/scoreboard players set #100 num 100
+/scoreboard players set #10 num 10
+
+##############
+##  트리거   ##
+##############
+    def add_trigger(var type, var source, var data){
+        # card 파라미터에서 functions, type, delay 받아오는걸로 바꾸기
+        set_data("storage", "40planet:dus", 'element', {
+            type: type,
+            source: source, # card, owner
+            data: data
+        });
+        /data modify storage 40planet:dus ingame.trigger_queue prepend from storage 40planet:dus element
+
+        # 체인 스택에 이벤트 추가했다는 플래그 보내기. 이후 플래그처리 단계에서 처리
+        /scoreboard players add #add_trigger flag 1
+    }
+
+    def test_add_trigger(){
+        add_trigger(2101, {
+            card:-1,
+            owner: get_data("storage", "40planet:dus", "ingame.player1.uuid")
+        }, {})
+    }
+
+    def reset_trigger_queue(){
+        /data modify storage 40planet:dus ingame.trigger_queue set value []
+    }
+
+    def trigger_top(){
+        return get_data("storage", "40planet:dus", "ingame.trigger_queue[0]");
+    }
+#
+
+
+
+###################
+##  발동가능 검사  ##
+###################
+
+    def check_trigger(var trigger_num, var criteria_num){
+        set_score("#trigger_type", "num", trigger_num);
+        set_score("#criteria_type", "num", criteria_num);
+
+        /scoreboard players operation #temp num = #trigger_type num
+        /scoreboard players operation #temp2 num = #criteria_type num
+        /scoreboard players operation #temp num %= #100 num
+        /scoreboard players operation #temp2 num %= #100 num
+        execute(unless score "#temp2" num matches 0 unless score "#temp" num = "#temp2" num){ return 0; }
+
+        /scoreboard players operation #trigger_type num /= #100 num
+        /scoreboard players operation #criteria_type num /= #100 num
+        /scoreboard players operation #temp num = #trigger_type num
+        /scoreboard players operation #temp2 num = #criteria_type num
+        /scoreboard players operation #temp num %= #10 num
+        /scoreboard players operation #temp2 num %= #10 num
+        execute(unless score "#temp2" num matches 0 unless score "#temp" num = "#temp2" num){ return 0; }
+
+        /scoreboard players operation #trigger_type num /= #10 num
+        /scoreboard players operation #criteria_type num /= #10 num
+        execute(unless score "#criteria_type" num matches 0 unless score "#trigger_type" num = "#criteria_type" num){ return 0; }
+
+        return 1;
+    }
+    var _criteria = [];
+    def check_criteria(var criteria){
+        print("\ncheck_criteria\n", criteria);
+        append(_criteria, criteria)
+        # card_criteria.json 같은 구조로 조건 노드 만들어서 재귀적으로 검사
+        set_score("#criteria_type", "num", criteria.type);
+        # or : 1
+        # and : 2
+        # event : 3
+        # command : 4
+        execute(if score "#criteria_type" num matches 3){
+            var triggers = get_data("storage", "40planet:dus", "ingame.trigger_queue");
+            set_score("#event_type", "num", criteria.value);
+
+            while(triggers[0]){
+                var trigger = triggers[0];
+                del(triggers[0]);
+                print("trigger type :", trigger.type, "| criteria type :", criteria.value);
+                if(check_trigger(trigger.type, criteria.value)){
+                    print("trigger matched!\n");
+                    del(_criteria[-1]);
+                    return 1;
+                }
+            }
+
+            del(_criteria[-1]);
+            return 0;
+        }
+        execute(if score "#criteria_type" num matches 2){
+            while(_criteria[-1].value[0]){
+                if(check_criteria(_criteria[-1].value[0])){
+                    del(_criteria[-1].value[0]);
+                }
+                else {
+                    del(_criteria[-1]);
+                    return 0;
+                }
+            }
+            del(_criteria[-1]);
+            return 1;
+        }
+        execute(if score "#criteria_type" num matches 1){
+            while(_criteria[-1].value[0]){
+                if(check_criteria(_criteria[-1].value[0])){
+                    del(_criteria[-1]);
+                    return 1;
+                }
+                del(_criteria[-1].value[0]);
+            }
+            del(_criteria[-1]);
+            return 0;
+        }
+        execute(if score "#criteria_type" num matches 4){
+            var command = _criteria[-1].value;
+            /scoreboard players set #temp num 0
+            /$execute store result score #temp num run $(command)
+
+            del(_criteria[-1]);
+            return get_score("#temp", "num");
+        }
+        del(_criteria[-1]);
+    }
+#
+
+
+
+##############
+## 스택 조작 ##
+##############
+
+    # 체인 스택 비어있는지 확인하는 함수
+    def is_empty(){
+        execute(unless data storage 40planet:dus effect_chain[0]){ return 1; }
+        return 0;
+    }
+
+    # 체인 스택에 효과를 추가하는 함수(링크)
+    def add(var uuid, var functions, var card, var type, var delay){
+        # card 파라미터에서 functions, type, delay 받아오는걸로 바꾸기
+        set_data("storage", "40planet:dus", 'effect_chain_element', {
+            owner: uuid,
+            functions: functions,
+            item: card,
+            effect_type: type,
+            delay: delay
+
+        });
+        /data modify storage 40planet:dus ingame.effect_chain prepend from storage 40planet:dus effect_chain_element
+
+        # TODO : ~의 효과 발동! 텍스트에서 텍스처 띄우는 기능으로 호버이벤트에 카드 이미지 넣기
+        /tellraw @a[tag=card_player] "대충 테스트의 효과 발동 시도"
+
+        # 체인 스택에 이벤트 추가했다는 플래그 보내기. 이후 플래그처리 단계에서 처리
+
+        /scoreboard players set #add_event flag 1
+    }
+
+    def top(){
+        return get_data("storage", "40planet:dus", "ingame.effect_chain[0]");
+    }
+
+    def pop(){
+        var effect_ele = top();
+        /data remove storage 40planet:dus ingame.effect_chain[0]
+        return effect_ele;
+    }
+#
+
+
+
+
+##############
+## 스택 처리 ##
+##############
+    # 이 부분은 어떠한 연출도 없음. 그냥 쌓여있는 효과들을 처리하는 부분. 연출은 각 효과를 추가할 때 처리하도록
+
+    # uuid 매크로로 함수 실행
+    def uuid_execute(var uuid, var fun){
+        /$execute as $(uuid) run $(fun)
+    }
+
+    # 카드의 처리가 끝났다는 신호 보내기
+    def end_card_effect(){
+        /scoreboard players set #is_end_card_effect flag 1
+        # 스캐줄 거는건 flag 처리 단계에서 감지해서 다음 행동 하도록 해야 할 듯
+        /execute if function __namespace__:is_empty run schedule function __namespace__:execute_top 1t
+    }
+
+    # 스택 원소 처리 시작
+    def execute_top(){
+        /scoreboard players set #is_end_card_effect flag 0
+        effect_ele = pop();
+        set_score("effect_type", "num", effect_ele.effect_type);
+        var functions = effect_ele.functions;
+        var owner = effect_ele.owner;
+
+        while(functions[0]){
+            uuid_execute(owner, functions[0]);
+            del(functions[0]);
+        }
+
+        # TODO : ~의 효과 발동! 텍스트에서 텍스처 띄우는 기능으로 호버이벤트에 카드 이미지 넣기
+        /tellraw @a[tag=card_player] "대충 테스트의 효과 발동!\n\n"
+
+        if(effect_ele.delay){
+            var delay = effect_ele.delay;
+            /$schedule function __namespace__:end_card_effect $(delay)t
+        } else {
+            end_card_effect();
+        }
+    }
+#

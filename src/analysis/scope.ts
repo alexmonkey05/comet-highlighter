@@ -115,7 +115,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "objective", type: "string" },
         ],
         returnType: "int",
@@ -129,7 +129,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "objective", type: "string" },
             { name: "value" },
         ],
