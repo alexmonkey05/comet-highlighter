@@ -206,10 +206,19 @@ export class Parser {
         const elseIfClauses: AST.ElseIfClause[] = [];
         let alternate: AST.Statement | null = null;
 
-        
-        while (this.check(TokenType.Else) && this.checkNext(TokenType.If)) {
-            this.advance(); 
-            this.advance(); 
+
+        while (true) {
+            const savedPos = this.current;
+            while (this.check(TokenType.Newline)) {
+                this.advance();
+            }
+            if (this.check(TokenType.Else) && this.checkNext(TokenType.If)) {
+                this.advance();
+                this.advance();
+            } else {
+                this.current = savedPos;
+                break;
+            }
 
             const elseIfStart = this.previous();
             this.consume(TokenType.LParen, 'Expected "(" after "else if"');
@@ -228,9 +237,17 @@ export class Parser {
             });
         }
 
-        
-        if (this.match(TokenType.Else)) {
-            alternate = this.parseStatement();
+
+        {
+            const savedPos = this.current;
+            while (this.check(TokenType.Newline)) {
+                this.advance();
+            }
+            if (this.match(TokenType.Else)) {
+                alternate = this.parseStatement();
+            } else {
+                this.current = savedPos;
+            }
         }
 
         return {

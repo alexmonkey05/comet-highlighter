@@ -393,7 +393,16 @@ export class SpyglassManager {
             parser === "minecraft:score_holder" ||
             parser === "minecraft:game_profile"
         ) {
-            if (!token.startsWith("@") && !/^[a-zA-Z0-9_]+$/.test(token)) {
+            const isScoreHolder = parser === "minecraft:score_holder";
+            const nameRegex = isScoreHolder
+                ? /^#?[a-zA-Z0-9_.+\-]+$/
+                : /^[a-zA-Z0-9_]+$/;
+            const isWildcard = isScoreHolder && token === "*";
+            if (
+                !token.startsWith("@") &&
+                !isWildcard &&
+                !nameRegex.test(token)
+            ) {
                 return {
                     start: offset,
                     length: token.length,
