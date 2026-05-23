@@ -391,14 +391,27 @@ export class Lexer {
         const startLine = this.line;
         const startColumn = this.column;
         const start = this.current;
+        let hasDecimal = false;
 
-        
         while (this.isDigit(this.peek())) {
             this.advance();
         }
 
-        
-        if (this.peek() === "f") {
+        if (this.peek() === "." && this.isDigit(this.peekNext())) {
+            hasDecimal = true;
+            this.advance();
+            while (this.isDigit(this.peek())) {
+                this.advance();
+            }
+        }
+
+        // NBT 스타일 접미사: f/F → float, d/D → double,
+        // b/B·s/S·l/L → 정수 변종 (이 언어는 별도 타입 없으므로 IntLiteral)
+        // 접미사 이후가 식별자 문자면 변수명으로 판단해 접미사로 보지 않음.
+        const c = this.peek();
+        const safeTail = !this.isAlphaNumeric(this.peekNext());
+
+        if ((c === "f" || c === "F") && safeTail) {
             this.advance();
             const value = this.source.substring(start, this.current);
             this.addToken(
@@ -409,25 +422,8 @@ export class Lexer {
             return;
         }
 
-        
-        if (this.peek() === "." && this.isDigit(this.peekNext())) {
-            this.advance(); 
-            while (this.isDigit(this.peek())) {
-                this.advance();
-            }
-
-            
-            if (this.peek() === "f") {
-                this.advance();
-                const value = this.source.substring(start, this.current);
-                this.addToken(
-                    TokenType.FloatLiteral,
-                    value,
-                    this.makeRange(startLine, startColumn)
-                );
-                return;
-            }
-
+        if ((c === "d" || c === "D") && safeTail) {
+            this.advance();
             const value = this.source.substring(start, this.current);
             this.addToken(
                 TokenType.DoubleLiteral,
@@ -437,10 +433,29 @@ export class Lexer {
             return;
         }
 
-        
+        if (
+            !hasDecimal &&
+            (c === "b" ||
+                c === "B" ||
+                c === "s" ||
+                c === "S" ||
+                c === "l" ||
+                c === "L") &&
+            safeTail
+        ) {
+            this.advance();
+            const value = this.source.substring(start, this.current);
+            this.addToken(
+                TokenType.IntLiteral,
+                value,
+                this.makeRange(startLine, startColumn)
+            );
+            return;
+        }
+
         const value = this.source.substring(start, this.current);
         this.addToken(
-            TokenType.IntLiteral,
+            hasDecimal ? TokenType.DoubleLiteral : TokenType.IntLiteral,
             value,
             this.makeRange(startLine, startColumn)
         );

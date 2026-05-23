@@ -93,6 +93,141 @@ export class SpyglassManager {
         return SpyglassManager.getParserTokenCount(parser) > 1;
     }
 
+    // 1.20.5+ 특수 파티클 NBT 키 스키마 (mcdoc 기반)
+    private static readonly PARTICLE_NBT_SCHEMA: Record<
+        string,
+        { required: string[]; optional: string[] }
+    > = {
+        dust: { required: ["color", "scale"], optional: [] },
+        dust_color_transition: {
+            required: ["from_color", "to_color", "scale"],
+            optional: [],
+        },
+        block: { required: ["block_state"], optional: [] },
+        block_marker: { required: ["block_state"], optional: [] },
+        falling_dust: { required: ["block_state"], optional: [] },
+        dust_pillar: { required: ["block_state"], optional: [] },
+        block_crumble: { required: ["block_state"], optional: [] },
+        item: { required: ["item"], optional: [] },
+        entity_effect: { required: ["color"], optional: [] },
+        sculk_charge: { required: ["roll"], optional: [] },
+        shriek: { required: ["delay"], optional: [] },
+        trail: { required: ["target", "color", "duration"], optional: [] },
+        vibration: {
+            required: ["arrival_in_ticks", "destination"],
+            optional: [],
+        },
+        tinted_leaves: { required: ["color"], optional: [] },
+        flash: { required: [], optional: ["color"] },
+        dragon_breath: { required: [], optional: ["power"] },
+        effect: { required: [], optional: ["power", "color"] },
+        instant_effect: { required: [], optional: ["power", "color"] },
+    };
+
+    private static getParticleSchema(name: string) {
+        const bare = name
+            .replace(/^minecraft:/, "")
+            .replace(/[\[\{].*$/, "");
+        return SpyglassManager.PARTICLE_NBT_SCHEMA[bare];
+    }
+
+    // top-level NBT compound 키만 추출 (중첩 compound/list 건너뜀)
+    private static extractTopLevelNbtKeys(nbt: string): string[] {
+        const keys: string[] = [];
+        let pos = 0;
+        if (nbt[pos] !== "{") return keys;
+        pos++;
+
+        const skipWs = () => {
+            while (pos < nbt.length && /\s/.test(nbt[pos])) pos++;
+        };
+        const skipValue = () => {
+            if (pos >= nbt.length) return;
+            const ch = nbt[pos];
+            if (ch === "{" || ch === "[") {
+                const open = ch;
+                const close = ch === "{" ? "}" : "]";
+                let depth = 0;
+                let inStr = false;
+                let q = "";
+                while (pos < nbt.length) {
+                    const c = nbt[pos];
+                    if (inStr) {
+                        if (c === "\\") {
+                            pos += 2;
+                            continue;
+                        }
+                        if (c === q) inStr = false;
+                    } else {
+                        if (c === '"' || c === "'") {
+                            inStr = true;
+                            q = c;
+                        } else if (c === open) {
+                            depth++;
+                        } else if (c === close) {
+                            depth--;
+                            if (depth === 0) {
+                                pos++;
+                                return;
+                            }
+                        }
+                    }
+                    pos++;
+                }
+            } else if (ch === '"' || ch === "'") {
+                const qq = ch;
+                pos++;
+                while (pos < nbt.length && nbt[pos] !== qq) {
+                    if (nbt[pos] === "\\") pos++;
+                    pos++;
+                }
+                if (pos < nbt.length) pos++;
+            } else {
+                while (
+                    pos < nbt.length &&
+                    nbt[pos] !== "," &&
+                    nbt[pos] !== "}" &&
+                    nbt[pos] !== "]"
+                )
+                    pos++;
+            }
+        };
+
+        while (pos < nbt.length && nbt[pos] !== "}") {
+            skipWs();
+            if (pos >= nbt.length || nbt[pos] === "}") break;
+            const ks = pos;
+            let key = "";
+            if (nbt[pos] === '"' || nbt[pos] === "'") {
+                const q = nbt[pos++];
+                while (pos < nbt.length && nbt[pos] !== q) {
+                    if (nbt[pos] === "\\") pos++;
+                    key += nbt[pos];
+                    pos++;
+                }
+                if (pos < nbt.length) pos++;
+            } else {
+                while (pos < nbt.length && /[a-zA-Z0-9_]/.test(nbt[pos])) {
+                    key += nbt[pos];
+                    pos++;
+                }
+            }
+            if (key) keys.push(key);
+            else {
+                pos++;
+                continue;
+            }
+            skipWs();
+            if (pos < nbt.length && nbt[pos] === ":") pos++;
+            skipWs();
+            skipValue();
+            skipWs();
+            if (pos < nbt.length && nbt[pos] === ",") pos++;
+            if (pos === ks) pos++;
+        }
+        return keys;
+    }
+
     private resourceLocationRegistryMap: Record<string, string> = {
         advancement: "advancement",
         loot_table: "loot_table",
@@ -258,6 +393,14 @@ export class SpyglassManager {
                             );
                             argSkip = Math.max(argSkip, count - 1);
 
+                            if (
+                                child.parser === "minecraft:message" ||
+                                (child.parser === "brigadier:string" && child.properties?.type === "greedy")
+                            ) {
+                                argSkip = Math.max(argSkip, tokens.length - tokenIndex - 1);
+                            }
+
+
                             const validationError = this.validateArgument(
                                 token,
                                 child,
@@ -265,6 +408,15 @@ export class SpyglassManager {
                             );
                             if (validationError) {
                                 errors.push(validationError);
+                            }
+
+                            if (child.parser === "minecraft:particle") {
+                                errors.push(
+                                    ...this.validateParticleArg(
+                                        token,
+                                        currentOffset
+                                    )
+                                );
                             }
                             break;
                         }
@@ -288,6 +440,16 @@ export class SpyglassManager {
                         ),
                         severity: "error",
                     });
+                } else {
+                    errors.push({
+                        start: currentOffset,
+                        length: token.length,
+                        message: vscode.l10n.t(
+                            "Unexpected argument: {0}. Command should end here.",
+                            token
+                        ),
+                        severity: "error",
+                    });
                 }
             }
 
@@ -305,8 +467,15 @@ export class SpyglassManager {
                 hasExecutable = false;
             }
 
-            currentOffset += token.length + 1;
-            tokenIndex += 1 + (foundLiteral ? 0 : argSkip);
+            const skip = foundLiteral ? 0 : argSkip;
+            let consumed = token.length + 1;
+            for (let i = 1; i <= skip; i++) {
+                if (tokenIndex + i < tokens.length) {
+                    consumed += tokens[tokenIndex + i].length + 1;
+                }
+            }
+            currentOffset += consumed;
+            tokenIndex += 1 + skip;
         }
 
         const hasExecutableNode =
@@ -336,6 +505,59 @@ export class SpyglassManager {
         return errors;
     }
 
+    private validateParticleArg(
+        token: string,
+        offset: number
+    ): CommandValidationError[] {
+        const errors: CommandValidationError[] = [];
+        const braceIdx = token.indexOf("{");
+        const id = (
+            braceIdx >= 0 ? token.substring(0, braceIdx) : token
+        ).replace(/^minecraft:/, "");
+        const schema = SpyglassManager.PARTICLE_NBT_SCHEMA[id];
+        if (!schema) return errors;
+
+        const presentKeys = new Set<string>();
+        if (braceIdx >= 0) {
+            const nbt = token.substring(braceIdx);
+            for (const k of SpyglassManager.extractTopLevelNbtKeys(nbt)) {
+                presentKeys.add(k);
+            }
+        }
+
+        const missing = schema.required.filter(k => !presentKeys.has(k));
+        if (missing.length > 0) {
+            errors.push({
+                start: offset,
+                length: token.length,
+                message: vscode.l10n.t(
+                    "Missing required key(s) for particle '{0}': {1}",
+                    id,
+                    missing.join(", ")
+                ),
+                severity: "error",
+            });
+        }
+
+        const known = new Set([...schema.required, ...schema.optional]);
+        for (const k of presentKeys) {
+            if (!known.has(k)) {
+                errors.push({
+                    start: offset,
+                    length: token.length,
+                    message: vscode.l10n.t(
+                        "Unknown key '{0}' for particle '{1}'",
+                        k,
+                        id
+                    ),
+                    severity: "warning",
+                });
+            }
+        }
+
+        return errors;
+    }
+
     private validateArgument(
         token: string,
         node: CommandNode,
@@ -345,7 +567,8 @@ export class SpyglassManager {
         if (!parser) return null;
 
         if (parser === "brigadier:integer") {
-            if (!/^-?\d+$/.test(token)) {
+            // NBT 스타일 접미사(b/B/s/S/l/L) 관용 허용
+            if (!/^-?\d+[bBsSlL]?$/.test(token)) {
                 return {
                     start: offset,
                     length: token.length,
@@ -357,7 +580,10 @@ export class SpyglassManager {
             parser === "brigadier:float" ||
             parser === "brigadier:double"
         ) {
-            if (!/^-?\d+(\.\d+)?$/.test(token)) {
+            // 소수점 양쪽 생략, 지수, NBT 접미사(f/F/d/D) 허용
+            if (
+                !/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[fFdD]?$/.test(token)
+            ) {
                 return {
                     start: offset,
                     length: token.length,
@@ -372,6 +598,19 @@ export class SpyglassManager {
                     length: token.length,
                     message: vscode.l10n.t(
                         "Expected boolean (true/false), got: {0}",
+                        token
+                    ),
+                    severity: "error",
+                };
+            }
+        } else if (parser === "minecraft:time") {
+            // 시간 단위: d=일, s=초, t=틱(기본). 대문자/기타 접미사 불허.
+            if (!/^-?(?:\d+\.?\d*|\.\d+)[dst]?$/.test(token)) {
+                return {
+                    start: offset,
+                    length: token.length,
+                    message: vscode.l10n.t(
+                        "Expected time (number with optional suffix d/s/t), got: {0}",
                         token
                     ),
                     severity: "error",
@@ -435,6 +674,10 @@ export class SpyglassManager {
 
         const registryKey = this.resolveRegistryKey(node, "");
         if (registryKey && this.registries[registryKey]) {
+            if (token === "*") {
+                return null;
+            }
+            
             const entries = this.registries[registryKey];
             const normalizedToken = token.replace(/^#/, "");
             const fullId = normalizedToken.includes(":")
@@ -628,9 +871,56 @@ export class SpyglassManager {
         }
 
         if (currentInput.includes("{")) {
-            const nbtPart = currentInput.substring(
-                currentInput.lastIndexOf("{")
-            );
+            const braceIdx = currentInput.lastIndexOf("{");
+            const beforeBrace = currentInput.substring(0, braceIdx);
+            const nbtPart = currentInput.substring(braceIdx);
+
+            // 파티클 NBT 키 자동완성: `<particle_id>{...partial` 인 경우
+            if (
+                !nbtPart.includes("}") &&
+                contextNodes.some(
+                    n =>
+                        n.children &&
+                        Object.values(n.children).some(
+                            c => c.parser === "minecraft:particle"
+                        )
+                )
+            ) {
+                const schema = SpyglassManager.getParticleSchema(beforeBrace);
+                if (schema) {
+                    // 현재 키 입력 위치 판정: 마지막 `{` 또는 `,` 이후 텍스트에 `:`가 없어야 키 위치
+                    const segMatch = nbtPart.match(/[{,]\s*([a-zA-Z0-9_]*)$/);
+                    if (segMatch) {
+                        const partialKey = segMatch[1];
+                        const usedKeys = new Set(
+                            SpyglassManager.extractTopLevelNbtKeys(
+                                nbtPart + "}"
+                            )
+                        );
+                        for (const key of [
+                            ...schema.required,
+                            ...schema.optional,
+                        ]) {
+                            if (usedKeys.has(key)) continue;
+                            if (!key.startsWith(partialKey)) continue;
+                            if (seenLabels.has(key)) continue;
+                            items.push({
+                                label: key,
+                                kind: vscode.CompletionItemKind.Property,
+                                detail: schema.required.includes(key)
+                                    ? vscode.l10n.t("Required")
+                                    : vscode.l10n.t("Optional"),
+                                insertText: key + ":",
+                                sortText:
+                                    (schema.required.includes(key) ? "0_" : "1_") +
+                                    key,
+                            });
+                            seenLabels.add(key);
+                        }
+                        return items;
+                    }
+                }
+            }
 
             if (/Tags\s*:\s*\[[^\]]*$/.test(nbtPart)) {
                 const match = /Tags\s*:\s*\[(.*)$/.exec(nbtPart);
@@ -940,6 +1230,38 @@ export class SpyglassManager {
                 }
             }
         } else if (
+            parser === "minecraft:item_slot" ||
+            parser === "minecraft:item_slots"
+        ) {
+            const slots = [
+                "armor.chest", "armor.feet", "armor.head", "armor.legs", "armor.body", "armor.*",
+                "weapon.mainhand", "weapon.offhand", "weapon.*",
+                "horse.saddle", "horse.chest", "horse.armor", "horse.*",
+                "contents",
+                "player.cursor", "player.crafting.*",
+                "container.*", "hotbar.*", "inventory.*", "enderchest.*",
+                "villager.*", "chiseled_bookshelf.*", "crafter.*"
+            ];
+            for (let i = 0; i < 54; i++) slots.push(`container.${i}`);
+            for (let i = 0; i < 27; i++) slots.push(`enderchest.${i}`);
+            for (let i = 0; i < 9; i++) slots.push(`hotbar.${i}`);
+            for (let i = 0; i < 27; i++) slots.push(`inventory.${i}`);
+            for (let i = 0; i < 8; i++) slots.push(`villager.${i}`);
+            for (let i = 0; i < 6; i++) slots.push(`chiseled_bookshelf.${i}`);
+            for (let i = 0; i < 9; i++) slots.push(`crafter.${i}`);
+            for (let i = 0; i < 4; i++) slots.push(`player.crafting.${i}`);
+
+            for (const slot of slots) {
+                if (slot.startsWith(currentInput) && !seenLabels.has(slot)) {
+                    items.push({
+                        label: slot,
+                        kind: vscode.CompletionItemKind.EnumMember,
+                        detail: "Item slot",
+                    });
+                    seenLabels.add(slot);
+                }
+            }
+        } else if (
             parser === "minecraft:color" ||
             parser === "minecraft:hex_color"
         ) {
@@ -1125,6 +1447,7 @@ export class SpyglassManager {
             const token = ranges[tokenIndex];
             const nextNodes: CommandNode[] = [];
             let matchedNode: CommandNode | null = null;
+            let matchedParser: string | undefined = undefined;
             let matchType = "variable";
 
             let tokenValue = token.value;
@@ -1140,6 +1463,7 @@ export class SpyglassManager {
                     node.children[tokenValue].type === "literal"
                 ) {
                     matchedNode = node.children[tokenValue];
+                    matchedParser = matchedNode.parser;
                     if (matchedNode.redirect) {
                         const r = this.resolveRedirect(matchedNode.redirect);
                         if (r) matchedNode = r;
@@ -1169,6 +1493,7 @@ export class SpyglassManager {
                     for (const [key, child] of Object.entries(node.children)) {
                         if (child.type === "argument") {
                             matchedNode = child;
+                            matchedParser = child.parser;
                             if (matchedNode.redirect) {
                                 const r = this.resolveRedirect(
                                     matchedNode.redirect
@@ -1190,7 +1515,7 @@ export class SpyglassManager {
                 } else {
                     currentNodes = nextNodes;
                 }
-                const parser = matchedNode.parser;
+                const parser = matchedParser;
 
                 if (parser && SpyglassManager.isCoordinateParser(parser)) {
                     const count = SpyglassManager.getParserTokenCount(parser);
@@ -1209,6 +1534,56 @@ export class SpyglassManager {
                         });
                         tokenIndex++;
                     }
+                    continue;
+                }
+
+                if (parser === "minecraft:particle") {
+                    // 1.20.5+ 파티클 인자: `<id>[{nbt}]` (특수 파티클은 NBT compound map 사용)
+                    // id 부분(namespace:path 또는 path)과 옵션 NBT compound를 분리해서 색칠
+                    const v = token.value;
+                    const braceIdx = v.indexOf("{");
+                    const idText = braceIdx >= 0 ? v.substring(0, braceIdx) : v;
+                    const idStart = token.start;
+
+                    const colonIdx = idText.indexOf(":");
+                    if (colonIdx >= 0) {
+                        semanticTokens.push({
+                            start: idStart,
+                            length: colonIdx,
+                            tokenType: "type",
+                            tokenModifiers: [],
+                        });
+                        semanticTokens.push({
+                            start: idStart + colonIdx,
+                            length: 1,
+                            tokenType: "operator",
+                            tokenModifiers: [],
+                        });
+                        semanticTokens.push({
+                            start: idStart + colonIdx + 1,
+                            length: idText.length - colonIdx - 1,
+                            tokenType: "type",
+                            tokenModifiers: [],
+                        });
+                    } else {
+                        semanticTokens.push({
+                            start: idStart,
+                            length: idText.length,
+                            tokenType: "type",
+                            tokenModifiers: [],
+                        });
+                    }
+
+                    if (braceIdx >= 0) {
+                        const nbtSlice = v.substring(braceIdx);
+                        semanticTokens.push(
+                            ...this.tokenizeNbt(
+                                nbtSlice,
+                                token.start + braceIdx
+                            )
+                        );
+                    }
+                    tokenIndex++;
                     continue;
                 }
 
@@ -1233,7 +1608,12 @@ export class SpyglassManager {
                         token.value
                     );
                 const isNbt = /^\{.*\}$/.test(token.value);
-                const isNumber = /^-?\d+(\.\d+)?[bslfd]?$/i.test(token.value);
+                // NBT 숫자 suffix(b/s/l/f/d)만. 시간 suffix(t)는 minecraft:time
+                // parser의 fallback 색칠로 처리되므로 여기 포함시키지 않음.
+                const isNumber =
+                    /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[bslfd]?$/i.test(
+                        token.value
+                    );
                 const isComplexByPattern =
                     isSelector || isResourceLocation || isNbt;
 
@@ -1732,14 +2112,16 @@ export class SpyglassManager {
 
                 if (valueText.includes("..")) {
                     const parts = valueText.split("..");
-                    if (parts[0].length > 0 && /^-?\d+$/.test(parts[0])) {
+                    const numRe =
+                        /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[bBsSlLfFdD]?$/;
+                    if (parts[0].length > 0 && numRe.test(parts[0])) {
                         emit(valueStart, parts[0].length, "number");
                     }
                     emit(valueStart + parts[0].length, 2, "operator");
                     if (
                         parts[1] &&
                         parts[1].length > 0 &&
-                        /^-?\d+$/.test(parts[1])
+                        numRe.test(parts[1])
                     ) {
                         emit(
                             valueStart + parts[0].length + 2,
@@ -1747,7 +2129,11 @@ export class SpyglassManager {
                             "number"
                         );
                     }
-                } else if (/^-?\d+(\.\d+)?$/.test(valueText)) {
+                } else if (
+                    /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[bBsSlLfFdD]?$/.test(
+                        valueText
+                    )
+                ) {
                     emit(valueStart, valueText.length, "number");
                 } else if (valueText === "true" || valueText === "false") {
                     emit(valueStart, valueText.length, "enumMember");
@@ -2161,7 +2547,11 @@ export class SpyglassManager {
                     tokenType: "method",
                     tokenModifiers: [],
                 });
-            } else if (tokenValue.match(/^-?\d+(\.\d+)?[bslfd]?$/i)) {
+            } else if (
+                tokenValue.match(
+                    /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[bslfd]?$/i
+                )
+            ) {
                 tokens.push({
                     start: token.start,
                     length: token.length,

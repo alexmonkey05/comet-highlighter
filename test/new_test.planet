@@ -1,0 +1,46 @@
+/damage @e[limit=1,sort=nearest] 10 minecraft:arrow by @p
+/random value 1..10
+
+/return run tellraw @a "Done"
+/return 1
+/execute if items entity @s weapon.mainhand minecraft:diamond_sword run say yes
+/execute if function my_namespace:my_function run say yes
+/place feature minecraft:end_spike ~ ~ ~
+/place jigsaw minecraft:ancient_city/city/entrance d 10 ~ ~ ~
+
+/execute on attacker on passengers on vehicle on leasher run say hi
+/execute store result block ~ ~ ~ Items[{Slot:0b}].Count byte 1 run scoreboard players get @s score
+/execute as @a at @s positioned ~ ~ ~ align xyz facing entity @e[limit=1,sort=nearest] eyes rotated as @p in minecraft:the_nether on vehicle summon minecraft:creeper run say boom
+
+/data modify block ~ ~ ~ Command set value string
+/data get entity @s Inventory[{Slot:0b}].tag.display.Name
+/data get entity @s CustomName'{"text":"\\"Hello\\""}'
+/data modify storage my:storage arr append value 1
+/data modify storage my:storage arr prepend from entity @s UUID
+/data modify storage my:storage arr insert 0 value "test"
+/data modify storage my:storage obj merge value {a:1, b:2}
+
+/kill @e[name="Hello World", nbt={HasVisualFire:1b}]
+/kill @a[scores={obj=..5, obj2=1..10, obj3=10}]
+/kill @a[advancements={minecraft:story/root=true, minecraft:story/mine_stone={has_item=true}}]
+/kill @e[type="#minecraft:skeletons"]
+
+/tellraw @a ["",{"text":"Hi "},{"selector":"@e[limit=1]"},{"nbt":"Inventory[0].tag","entity":"@s","interpret":true}]
+
+/particle minecraft:dust_color_transition{scale:1,from_color:1,to_color:0} ~ ~ ~ 0 0 0 1 10 force @a
+/particle block minecraft:stone[half=top] ~ ~ ~
+/attribute @s max_health modifier add 0-0-0-0-0 10 add_value
+/item modify entity @s weapon.mainhand minecraft:example
+/item replace entity @s armor.head with minecraft:stone{CustomData:{}}
+/loot spawn ~ ~ ~ kill @e[type=pig,limit=1]
+/schedule function my:func 10f append
+
+/scoreboard players operation @s obj += @s obj
+/scoreboard players operation @s obj -= @s obj
+/scoreboard players operation @s obj *= @s obj
+/scoreboard players operation @s obj /= @s obj
+/scoreboard players operation @s obj %= @s obj
+/scoreboard players operation @s obj = @s obj
+/scoreboard players operation @s obj < @s obj
+/scoreboard players operation @s obj > @s obj
+/scoreboard players operation @s obj >< @s obj

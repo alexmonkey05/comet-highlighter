@@ -757,7 +757,18 @@ export class Parser {
                 };
             } else if (this.match(TokenType.Dot)) {
                 
-                const property = this.parseIdentifier();
+                let property: AST.Expression;
+                if (this.match(TokenType.StringLiteral)) {
+                    const token = this.previous();
+                    property = {
+                        type: "StringLiteral",
+                        value: token.value,
+                        raw: `"${token.value}"`, // 또는 실제 따옴표 포함한 원본 문자열
+                        range: this.makeRange(token),
+                    };
+                } else {
+                    property = this.parseIdentifier();
+                }
 
                 expr = {
                     type: "MemberExpression",
