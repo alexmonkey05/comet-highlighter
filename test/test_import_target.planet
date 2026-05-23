@@ -1,0 +1,12 @@
+# test_all.planet 에서 import 하는 대상 모듈
+def hello(var name){
+    print("hello,", name)
+}
+
+def add(var a, var b){
+    return a + b
+}
+
+def silent(){
+    /say silent
+}

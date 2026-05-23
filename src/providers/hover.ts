@@ -29,6 +29,19 @@ export class HoverProvider implements vscode.HoverProvider {
             return null;
         }
 
+        if (identifier.name === "__namespace__") {
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock("__namespace__", "comet");
+            md.appendMarkdown("\n\n" + vscode.l10n.t("Resolves to the module path. In the main file, equals the configured namespace; in imported modules, becomes `namespace:filename/`."));
+            return new vscode.Hover(md);
+        }
+        if (identifier.name === "__main__") {
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock("__main__", "comet");
+            md.appendMarkdown("\n\n" + vscode.l10n.t("Always resolves to the configured root namespace, regardless of which file it appears in."));
+            return new vscode.Hover(md);
+        }
+
         const symbol = parseResult.scope.resolve(identifier.name);
         if (!symbol) {
             return null;
@@ -79,7 +92,7 @@ export class HoverProvider implements vscode.HoverProvider {
                 );
                 const varLine = symbol.declarationRange.start.line + 1;
                 markdown.appendMarkdown(
-                    `\n\n${vscode.l10n.t("hover.declaredAtLine", varLine)}`
+                    `\n\n${vscode.l10n.t("Declared at line {0}", varLine)}`
                 );
                 break;
 
@@ -90,7 +103,7 @@ export class HoverProvider implements vscode.HoverProvider {
             case "import":
                 markdown.appendCodeblock(`import ${symbol.name}`, "comet");
                 markdown.appendMarkdown(
-                    `\n\n${vscode.l10n.t("hover.importedModule")}`
+                    `\n\n${vscode.l10n.t("Imported module")}`
                 );
                 break;
 

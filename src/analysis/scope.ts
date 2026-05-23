@@ -115,7 +115,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "objective", type: "string" },
         ],
         returnType: "int",
@@ -129,7 +129,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "objective", type: "string" },
             { name: "value" },
         ],
@@ -145,7 +145,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [
             { name: "type", type: "string" },
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "path", type: "string" },
         ],
         returnType: "any",
@@ -160,7 +160,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [
             { name: "type", type: "string" },
-            { name: "target", type: "string" },
+            { name: "target", type: "string|entity" },
             { name: "path", type: "string" },
             { name: "value" },
         ],
@@ -315,6 +315,7 @@ export class ScopeAnalyzer {
     }
 
     analyze(program: AST.Program): Scope {
+        this.globalScope.range = program.range;
         this.visitProgram(program);
         return this.globalScope;
     }

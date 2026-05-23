@@ -1,0 +1,325 @@
+# =====================================================================
+# Comet Highlighter — 종합 lint 테스트
+# 의도된 warning/error는 [WARN], [ERROR] 로 주석 표시
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. 자료형 / 변수 선언
+# ---------------------------------------------------------------------
+var a
+var b = 2.0
+var c = "asdf"
+var d = 1f
+var e = 3.14
+var arr = [1, 2, 3]
+var nbt = { id: "minecraft:block_display", Tags: ["temp"] }
+
+# ---------------------------------------------------------------------
+# 2. 매크로 / escape — [정상] 매크로 변수만 색칠, \$( 는 escape
+# ---------------------------------------------------------------------
+def macro_test(){
+    var text = 123
+    /$say $(text)
+    /$$(text)
+    /$say $(text) \$
+    /$\$say \$(text)
+}
+
+# ---------------------------------------------------------------------
+# 3. 함수 — [WARN] 대문자로 시작하는 함수명
+# ---------------------------------------------------------------------
+def BadName(){     # [WARN] diagnostic.uppercaseFunction
+    print("bad")
+}
+
+def good_name(var x, var y){
+    return x + y
+}
+
+# ---------------------------------------------------------------------
+# 4. 조건문 — [WARN] 중괄호 생략
+# ---------------------------------------------------------------------
+def if_test(){
+    var n = 0
+    if(n == 0){
+        n = n + 1
+    }
+
+    if(n == 1)              # [WARN] diagnostic.ifNoBraces
+        n = n + 1
+
+    if(n == 2){
+        n = n + 1
+    } else                  # [WARN] diagnostic.elseNoBraces
+        n = n - 1
+
+    if(n == 3){
+        n = n + 1
+    } else if(n == 0)       # [WARN] diagnostic.elseIfNoBraces
+        n = n + 2
+}
+
+# ---------------------------------------------------------------------
+# 5. 반복문 / break — [ERROR] 함수/루프 밖 break, return
+# ---------------------------------------------------------------------
+def loop_test(){
+    var i = 0
+    while(i < 10){
+        if(i == 5){
+            break
+        }
+        i = i + 1
+    }
+}
+
+break                       # [ERROR] diagnostic.breakOutsideLoop
+return                      # [ERROR] diagnostic.returnOutsideFunction
+
+# ---------------------------------------------------------------------
+# 6. 정의되지 않은 식별자/함수 — [WARN]
+# ---------------------------------------------------------------------
+def undef_test(){
+    var k = undefinedVar    # [WARN] diagnostic.undefinedIdentifier
+    nonexistent_func(1, 2)  # [WARN] diagnostic.undefinedFunction
+}
+
+# ---------------------------------------------------------------------
+# 7. 내장 함수 인자 개수 — [WARN]
+# ---------------------------------------------------------------------
+def builtin_argc(){
+    round()                 # [WARN] diagnostic.expectedArguments (1 필요, 0 입력)
+    round(1.2, 3.4)         # [WARN] diagnostic.expectedArguments (1 필요, 2 입력)
+    divide(1)               # [WARN] diagnostic.expectedArguments (2 필요, 1 입력)
+    print()                 # [WARN] diagnostic.expectedAtLeast (가변인자 최소)
+    print("a", "b", "c")    # [정상] 가변인자
+}
+
+# ---------------------------------------------------------------------
+# 8. 내장 함수 / 캐스트 호출 — [정상]
+# ---------------------------------------------------------------------
+def builtin_ok(){
+    print(int(1.7))
+    print(float(1))
+    print(double(1))
+    print(string(1 + 1))
+    print(bool(0))
+    print(type(1.0))
+    print(len([1, 2, 3]))
+    print(len("hello"))
+    print(round(1.5))
+    print(random())
+    print(divide(1, 2))
+    print(multiply(2, 3))
+    if(is_module()){
+        print("module")
+    }
+
+    var arr2 = []
+    append(arr2, 1)
+    del(arr2[0])
+
+    set_score("p1", "obj", 10)
+    print(get_score("p1", "obj"))
+    set_data("storage", "ns:foo", "path", "value")
+    print(get_data("storage", "ns:foo", "path"))
+}
+
+# ---------------------------------------------------------------------
+# 9. 마인크래프트 커맨드 — [WARN/ERROR] spyglass 검증
+# ---------------------------------------------------------------------
+def mc_commands(){
+    /say hello                          # [정상]
+    /gamemode creative @a               # [정상]
+    /tp @s 0 64 0                       # [정상]
+
+    /say a; /say b                      # [WARN] diagnostic.semicolonInCommand
+    /gamemode survival @a; /say done    # [WARN] diagnostic.semicolonInCommand
+
+    /gamemode banana @a                 # [ERROR] error.invalidGamemode
+    /tp 1@2 0 0 0                       # [ERROR/WARN] error.invalidEntitySelector
+    /wrongcommand foo bar               # [ERROR] error.unknownCommand
+}
+
+# ---------------------------------------------------------------------
+# 10. execute — [정상 + 일부 ERROR]
+# ---------------------------------------------------------------------
+def execute_tests(){
+    execute(if entity @s){
+        /say has entity
+    }
+
+    execute(as @a at @s if function ns:check){
+        /say function check
+    }
+
+    execute(if function {
+        return 1
+    } positioned 0 0 0){
+        print("inline function ok")
+    }
+
+    execute(if entity @x){              # [ERROR/WARN] 잘못된 selector
+        /say bad selector
+    }
+}
+
+# ---------------------------------------------------------------------
+# 11. 매크로 escape 회귀 — \$( 는 매크로로 인식되면 안 됨
+# ---------------------------------------------------------------------
+def macro_escape(){
+    /$\$say \$(text)                    # [정상] 전체가 escape
+    /$say $(real) \$(literal)           # [정상] $(real) 만 매크로, \$(literal) 은 escape
+}
+
+# ---------------------------------------------------------------------
+# 12. 특수 식별자 — [정상] hover 확인
+# ---------------------------------------------------------------------
+def special_idents(){
+    /function __namespace__:foo
+    /function __main__:foo
+}
+
+# ---------------------------------------------------------------------
+# 13. NBT 리터럴 — [정상]
+# ---------------------------------------------------------------------
+def nbt_test(){
+    var deep = {
+        outer: {
+            inner: [1, 2, 3],
+            text: "hello, world",
+            flag: true
+        },
+        list: [
+            { id: "minecraft:stone" },
+            { id: "minecraft:dirt" }
+        ]
+    }
+    print(deep)
+}
+
+# ---------------------------------------------------------------------
+# 14. 멤버 접근 / 배열 인덱스 — [정상]
+# ---------------------------------------------------------------------
+def member_test(){
+    var data = { a: 1, b: [10, 20, 30] }
+    print(data.a)
+    print(data.b[1])
+    data.a = 99
+}
+
+# ---------------------------------------------------------------------
+# 15. 지역 변수 스코프 (가이드 §지역변수)
+# ---------------------------------------------------------------------
+import test_import_target
+
+def scope_test(){
+    var a = 1
+    if(a == 1){
+        var a = 99             # [정상] 블록 안의 a는 별개
+        print(a)               # 99
+    }
+    print(a)                   # 1 (블록 밖 a)
+}
+
+# ---------------------------------------------------------------------
+# 16. import 사용 — [정상] 멤버 자동완성 검증용
+# ---------------------------------------------------------------------
+def import_test(){
+    test_import_target.hello("world")
+    var s = test_import_target.add(1, 2)
+    print(s)
+    test_import_target.silent()
+    test_import_target.unknown_member()   # [정상 — 동적 검사 없음, 자동완성에서만 누락됨]
+}
+
+# ---------------------------------------------------------------------
+# 17. 조건에 변수만 (가이드 line 376-391) — [정상]
+# ---------------------------------------------------------------------
+def truthy_test(){
+    var x = 1
+    if(x){                     # truthy
+        print("truthy")
+    }
+
+    var empty = ""
+    if(empty){                 # 거짓 — 빈 문자열
+        print("never")
+    }
+
+    if(!empty){                # ! 단항
+        print("not empty")
+    }
+}
+
+# ---------------------------------------------------------------------
+# 18. 산술 / 관계 / 논리 연산 (가이드 §연산)
+# ---------------------------------------------------------------------
+def operator_test(){
+    var a = (1 + 2) * 3 % 4
+    var b = -a
+    var c = a == b or a != b and !(a > b)
+    print(a, b, c)
+    print(1 + "1")             # [정상 — 런타임 타입 오류, 컴파일러는 잡지 않음]
+}
+
+# ---------------------------------------------------------------------
+# 19. 좌표 (~, ^) — [정상] spyglass 검증
+# ---------------------------------------------------------------------
+def coord_test(){
+    /tp @s ~ ~1 ~
+    /setblock ~ ~-1 ~ minecraft:stone
+    /tp @s ^ ^ ^1
+    /particle minecraft:flame ~ ~ ~ 0.1 0.1 0.1 0 1
+}
+
+# ---------------------------------------------------------------------
+# 20. 인게임 매크로 — NBT 인자 호출 (가이드 line 267-274)
+# ---------------------------------------------------------------------
+def ingame_macro(){
+    /$\$say \$(text)
+}
+def ingame_macro_caller(){
+    /function __namespace__:ingame_macro {text:"asdf"}
+}
+
+# ---------------------------------------------------------------------
+# 21. `/#` 주석 — [정상] (lexer 확장)
+# ---------------------------------------------------------------------
+def slash_hash_comment(){
+    /# 이 줄은 주석으로 처리되어야 함
+    /say after
+}
+
+# ---------------------------------------------------------------------
+# 22. var 키워드 누락 매개변수 — [ERROR] 파서 에러 회귀
+# ---------------------------------------------------------------------
+def missing_var_param(a, b){   # [ERROR] Expected "var" before parameter name
+    print(a, b)
+}
+
+# ---------------------------------------------------------------------
+# 23. 진입점
+# ---------------------------------------------------------------------
+def tick(){
+    # 매 틱 실행
+}
+
+def load(){
+    macro_test()
+    if_test()
+    loop_test()
+    builtin_ok()
+    mc_commands()
+    execute_tests()
+    macro_escape()
+    special_idents()
+    nbt_test()
+    member_test()
+    scope_test()
+    import_test()
+    truthy_test()
+    operator_test()
+    coord_test()
+    ingame_macro_caller()
+    slash_hash_comment()
+}

@@ -50,13 +50,28 @@
       ]
     },
     "strings": {
-      "name": "string.quoted.double.comet",
-      "begin": "\"",
-      "end": "\"",
       "patterns": [
         {
-          "name": "constant.character.escape.comet",
-          "match": "\\\\."
+          "name": "string.quoted.double.comet",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.comet",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.comet",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.comet",
+              "match": "\\\\."
+            }
+          ]
         }
       ]
     },
@@ -148,7 +163,7 @@
       "patterns": [
         {
           "name": "meta.command.minecraft.comet",
-          "begin": "^\\s*(/)(execute|scoreboard|give|summon|kill|tp|teleport|data|setblock|fill|clone|effect|enchant|experience|xp|gamemode|gamerule|clear|playsound|stopsound|particle|function|advancement|recipe|loot|team|tag|say|tell|msg|w|tellraw|title|bossbar|weather|time|setworldspawn|spawnpoint|worldborder|difficulty|locate|forceload|schedule|spreadplayers|jfr)\\b",
+          "begin": "^\\s*(/)(execute|scoreboard|give|summon|kill|tp|teleport|data|setblock|fill|clone|effect|enchant|experience|xp|gamemode|gamerule|clear|playsound|stopsound|particle|function|advancement|recipe|loot|team|tag|say|tell|msg|w|tellraw|title|bossbar|weather|time|setworldspawn|spawnpoint|worldborder|difficulty|locate|forceload|schedule|spreadplayers|jfr|damage|place|return|tick|random|ride|item|attribute|fillbiome|reload|perf|debug)\\b",
           "beginCaptures": {
             "1": {
               "name": "punctuation.definition.command.comet"
@@ -270,7 +285,7 @@
     "minecraft-subcommands": {
       "patterns": [
         {
-          "match": "\\b(run|as|at|if|unless|in|positioned|rotated|anchored|align|store|result|success|objectives|players|score|matches|add|set|reset|remove|list|get|operation|enable|modify|block|entity|storage|merge|append|insert|prepend|from|string|value)\\b",
+          "match": "\\b(run|as|at|if|unless|in|positioned|rotated|anchored|align|store|result|success|objectives|players|score|matches|add|set|reset|remove|list|get|operation|enable|modify|block|entity|storage|merge|append|insert|prepend|from|string|value|function|facing|loaded|biome|blocks|dimension|predicate|data|eyes|feet|on|parent|target|attacker|vehicle|controller|owner|leasher|passengers|origin|over)\\b",
           "name": "support.function.subcommand.comet"
         }
       ]
@@ -352,6 +367,10 @@
           },
           "patterns": [
             {
+              "name": "constant.character.escape.comet",
+              "match": "\\\\\\$"
+            },
+            {
               "include": "#macro-variables"
             },
             {
@@ -380,7 +399,7 @@
         },
         {
           "name": "variable.other.macro.comet",
-          "match": "\\$\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
+          "match": "(?<!\\\\)\\$\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
         }
       ]
     },
@@ -388,7 +407,7 @@
       "patterns": [
         {
           "name": "variable.other.macro.comet",
-          "match": "\\$\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
+          "match": "(?<!\\\\)\\$\\([a-zA-Z_][a-zA-Z0-9_]*\\)"
         }
       ]
     },

@@ -188,7 +188,7 @@ export class SpyglassManager {
             errors.push({
                 start: command.startsWith("/") ? 1 : 0,
                 length: firstToken.length,
-                message: vscode.l10n.t("error.unknownCommand", firstToken),
+                message: vscode.l10n.t("Unknown command: {0}", firstToken),
                 severity: "error",
             });
             return errors;
@@ -281,7 +281,7 @@ export class SpyglassManager {
                         start: currentOffset,
                         length: token.length,
                         message: vscode.l10n.t(
-                            "error.unexpectedArgument",
+                            "Unexpected argument: {0}. Expected: {1}{2}",
                             token,
                             expected,
                             expectedTokens.length > 5 ? "..." : ""
@@ -324,7 +324,7 @@ export class SpyglassManager {
                     start: 0,
                     length: command.length,
                     message: vscode.l10n.t(
-                        "error.incompleteCommand",
+                        "Incomplete command. Expected: {0}{1}",
                         expected,
                         expectedTokens.length > 5 ? "..." : ""
                     ),
@@ -349,7 +349,7 @@ export class SpyglassManager {
                 return {
                     start: offset,
                     length: token.length,
-                    message: vscode.l10n.t("error.expectedInteger", token),
+                    message: vscode.l10n.t("Expected integer, got: {0}", token),
                     severity: "error",
                 };
             }
@@ -361,7 +361,7 @@ export class SpyglassManager {
                 return {
                     start: offset,
                     length: token.length,
-                    message: vscode.l10n.t("error.expectedNumber", token),
+                    message: vscode.l10n.t("Expected number, got: {0}", token),
                     severity: "error",
                 };
             }
@@ -370,7 +370,10 @@ export class SpyglassManager {
                 return {
                     start: offset,
                     length: token.length,
-                    message: vscode.l10n.t("error.expectedBoolean", token),
+                    message: vscode.l10n.t(
+                        "Expected boolean (true/false), got: {0}",
+                        token
+                    ),
                     severity: "error",
                 };
             }
@@ -381,7 +384,7 @@ export class SpyglassManager {
                     start: offset,
                     length: token.length,
                     message: vscode.l10n.t(
-                        "error.invalidGamemode",
+                        "Invalid gamemode: {0}. Expected: {1}",
                         token,
                         modes.join(", ")
                     ),
@@ -393,12 +396,36 @@ export class SpyglassManager {
             parser === "minecraft:score_holder" ||
             parser === "minecraft:game_profile"
         ) {
-            if (!token.startsWith("@") && !/^[a-zA-Z0-9_]+$/.test(token)) {
+            const isScoreHolder = parser === "minecraft:score_holder";
+            
+            let workToken = token;
+            if ((workToken.startsWith('"') && workToken.endsWith('"')) || 
+                (workToken.startsWith("'") && workToken.endsWith("'"))) {
+                workToken = workToken.substring(1, workToken.length - 1);
+            }
+
+            const nameRegex = isScoreHolder
+                ? /^#?[a-zA-Z0-9_.+\-]+$/
+                : /^[a-zA-Z0-9_]+$/;
+            const isWildcard = isScoreHolder && workToken === "*";
+            if (workToken.startsWith("@")) {
+                if (!/^@[aeprsn](\[.*\])?$/.test(workToken)) {
+                    return {
+                        start: offset,
+                        length: token.length,
+                        message: vscode.l10n.t(
+                            "Invalid entity selector or player name: {0}",
+                            token
+                        ),
+                        severity: "warning",
+                    };
+                }
+            } else if (!isWildcard && !nameRegex.test(workToken)) {
                 return {
                     start: offset,
                     length: token.length,
                     message: vscode.l10n.t(
-                        "error.invalidEntitySelector",
+                        "Invalid entity selector or player name: {0}",
                         token
                     ),
                     severity: "warning",
@@ -424,7 +451,7 @@ export class SpyglassManager {
                     start: offset,
                     length: token.length,
                     message: vscode.l10n.t(
-                        "error.unknownRegistry",
+                        "Unknown {0}: {1}",
                         registryKey,
                         baseId
                     ),
@@ -517,7 +544,7 @@ export class SpyglassManager {
                             items.push({
                                 label: t,
                                 kind: vscode.CompletionItemKind.Value,
-                                detail: vscode.l10n.t("completion.tag"),
+                                detail: vscode.l10n.t("tag {0}", t),
                             });
                         }
                     });
@@ -644,7 +671,7 @@ export class SpyglassManager {
                         items.push({
                             label: key,
                             kind: vscode.CompletionItemKind.Keyword,
-                            detail: vscode.l10n.t("completion.literal"),
+                            detail: vscode.l10n.t("Literal"),
                             sortText: "0_" + key,
                         });
                         seenLabels.add(key);
@@ -747,7 +774,7 @@ export class SpyglassManager {
                 items.push({
                     label: val,
                     kind: vscode.CompletionItemKind.Value,
-                    detail: vscode.l10n.t("completion.coordinate"),
+                    detail: vscode.l10n.t("Coordinate"),
                     sortText: "0_" + val,
                 });
                 seenLabels.add(val);
@@ -772,17 +799,17 @@ export class SpyglassManager {
                 {
                     label: "~ ~ ~",
                     insert: "~ ~ ~",
-                    detail: vscode.l10n.t("completion.relativeCoordinates"),
+                    detail: vscode.l10n.t("Relative coordinates"),
                 },
                 {
                     label: "^ ^ ^",
                     insert: "^ ^ ^",
-                    detail: vscode.l10n.t("completion.localCoordinates"),
+                    detail: vscode.l10n.t("Local coordinates"),
                 },
                 {
                     label: "0 0 0",
                     insert: "0 0 0",
-                    detail: vscode.l10n.t("completion.absoluteCoordinates"),
+                    detail: vscode.l10n.t("Absolute coordinates"),
                 }
             );
         } else {
@@ -790,17 +817,17 @@ export class SpyglassManager {
                 {
                     label: "~ ~",
                     insert: "~ ~",
-                    detail: vscode.l10n.t("completion.relative"),
+                    detail: vscode.l10n.t("Relative"),
                 },
                 {
                     label: "^ ^",
                     insert: "^ ^",
-                    detail: vscode.l10n.t("completion.local"),
+                    detail: vscode.l10n.t("Local"),
                 },
                 {
                     label: "0 0",
                     insert: "0 0",
-                    detail: vscode.l10n.t("completion.absolute"),
+                    detail: vscode.l10n.t("Absolute"),
                 }
             );
         }
