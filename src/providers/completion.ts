@@ -58,7 +58,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                     vscode.CompletionItemKind.Function
                 );
                 item.detail =
-                    comp.detail || vscode.l10n.t("completion.minecraftCommand");
+                    comp.detail || vscode.l10n.t("Minecraft command");
                 if (wordRange) item.range = wordRange;
                 return item;
             });
@@ -76,7 +76,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                 this.createSnippet(
                     "tick",
                     "tick(){\n\t$0\n}",
-                    vscode.l10n.t("completion.tickFunction"),
+                    vscode.l10n.t("Special function: runs every tick"),
                     wordRange
                 )
             );
@@ -84,7 +84,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                 this.createSnippet(
                     "load",
                     "load(){\n\t$0\n}",
-                    vscode.l10n.t("completion.loadFunction"),
+                    vscode.l10n.t("Special function: runs on datapack load"),
                     wordRange
                 )
             );
@@ -146,7 +146,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                 );
                 item.detail =
                     comp.detail ||
-                    vscode.l10n.t("completion.executeSubcommand");
+                    vscode.l10n.t("Execute subcommand");
                 if (wordRange) item.range = wordRange;
                 return item;
             });
@@ -156,7 +156,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "var",
                 "var ${1:name} = $0",
-                vscode.l10n.t("completion.varDeclaration"),
+                vscode.l10n.t("Variable declaration"),
                 wordRange
             )
         );
@@ -164,7 +164,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "def",
                 "def ${1:name}(${2}){\n\t$0\n}",
-                vscode.l10n.t("completion.funcDeclaration"),
+                vscode.l10n.t("Function declaration"),
                 wordRange
             )
         );
@@ -172,7 +172,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "if",
                 "if(${1:condition}){\n\t$0\n}",
-                vscode.l10n.t("completion.ifStatement"),
+                vscode.l10n.t("If statement"),
                 wordRange
             )
         );
@@ -180,7 +180,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "else",
                 "else {\n\t$0\n}",
-                vscode.l10n.t("completion.elseClause"),
+                vscode.l10n.t("Else clause"),
                 wordRange
             )
         );
@@ -188,7 +188,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "while",
                 "while(${1:condition}){\n\t$0\n}",
-                vscode.l10n.t("completion.whileLoop"),
+                vscode.l10n.t("While loop"),
                 wordRange
             )
         );
@@ -196,7 +196,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "return",
                 "return $0",
-                vscode.l10n.t("completion.returnStatement"),
+                vscode.l10n.t("Return statement"),
                 wordRange
             )
         );
@@ -204,7 +204,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "break",
                 "break",
-                vscode.l10n.t("completion.breakStatement"),
+                vscode.l10n.t("Break statement"),
                 wordRange
             )
         );
@@ -212,7 +212,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "import",
                 "import ${1:module}",
-                vscode.l10n.t("completion.importModule"),
+                vscode.l10n.t("Import module"),
                 wordRange
             )
         );
@@ -220,7 +220,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             this.createKeyword(
                 "execute",
                 "execute(${1:subcommands}){\n\t$0\n}",
-                vscode.l10n.t("completion.executeStatement"),
+                vscode.l10n.t("Execute statement"),
                 wordRange
             )
         );
@@ -229,7 +229,7 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             "/",
             vscode.CompletionItemKind.Keyword
         );
-        cmdItem.detail = vscode.l10n.t("completion.minecraftCommand");
+        cmdItem.detail = vscode.l10n.t("Minecraft command");
         cmdItem.insertText = "/$0";
         if (wordRange) cmdItem.range = wordRange;
         items.push(cmdItem);
@@ -269,14 +269,14 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
         items.push(
             this.createSpecial(
                 "__namespace__",
-                vscode.l10n.t("completion.currentNamespace"),
+                vscode.l10n.t("Current namespace"),
                 wordRange
             )
         );
         items.push(
             this.createSpecial(
                 "__main__",
-                vscode.l10n.t("completion.mainModuleCheck"),
+                vscode.l10n.t("Main module check"),
                 wordRange
             )
         );
@@ -284,14 +284,14 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
         items.push(
             this.createConstant(
                 "true",
-                vscode.l10n.t("completion.booleanTrue"),
+                vscode.l10n.t("Boolean true"),
                 wordRange
             )
         );
         items.push(
             this.createConstant(
                 "false",
-                vscode.l10n.t("completion.booleanFalse"),
+                vscode.l10n.t("Boolean false"),
                 wordRange
             )
         );
@@ -384,37 +384,37 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                     case "function":
                         kind = vscode.CompletionItemKind.Function;
                         detail = vscode.l10n.t(
-                            "completion.function",
+                            "function {0}",
                             `${name}(${this.formatParams(symbol.params || [])})`
                         );
                         break;
                     case "variable":
                         kind = vscode.CompletionItemKind.Variable;
-                        detail = vscode.l10n.t("completion.variable", name);
+                        detail = vscode.l10n.t("variable {0}", name);
                         break;
                     case "parameter":
                         kind = vscode.CompletionItemKind.Variable;
-                        detail = vscode.l10n.t("completion.parameter", name);
+                        detail = vscode.l10n.t("parameter {0}", name);
                         break;
                     case "import":
                         kind = vscode.CompletionItemKind.Module;
-                        detail = vscode.l10n.t("completion.module", name);
+                        detail = vscode.l10n.t("module {0}", name);
                         break;
                     case "score":
                         kind = vscode.CompletionItemKind.Value;
                         detail = vscode.l10n.t(
-                            "completion.score",
+                            "score {0} {1}",
                             symbol.scope ?? "",
                             name
                         );
                         break;
                     case "storage":
                         kind = vscode.CompletionItemKind.Struct;
-                        detail = vscode.l10n.t("completion.storage", name);
+                        detail = vscode.l10n.t("storage {0}", name);
                         break;
                     case "tag":
                         kind = vscode.CompletionItemKind.Value;
-                        detail = vscode.l10n.t("completion.tag", name);
+                        detail = vscode.l10n.t("tag {0}", name);
                         break;
                     default:
                         kind = vscode.CompletionItemKind.Variable;

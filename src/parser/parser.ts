@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import { Token, TokenType } from "../lexer/token";
 import { createRange, Range } from "../utils/position";
 import * as AST from "./ast";
@@ -148,7 +149,7 @@ export class Parser {
         const start = this.previous();
 
         if (!this.check(TokenType.Identifier)) {
-            this.error("Expected variable name");
+            this.error(vscode.l10n.t("Expected variable name"));
             return {
                 type: "VarDeclaration",
                 name: {
@@ -183,13 +184,18 @@ export class Parser {
 
         const name = this.parseIdentifier();
 
-        this.consume(TokenType.LParen, 'Expected "(" after function name');
+        this.consume(
+            TokenType.LParen,
+            vscode.l10n.t('Expected "(" after function name')
+        );
 
         const params: AST.VarDeclaration[] = [];
         if (!this.check(TokenType.RParen)) {
             do {
                 if (!this.match(TokenType.Var)) {
-                    this.error('Expected "var" before parameter name');
+                    this.error(
+                        vscode.l10n.t('Expected "var" before parameter name')
+                    );
                 }
                 const paramName = this.parseIdentifier();
                 params.push({
@@ -201,7 +207,10 @@ export class Parser {
             } while (this.match(TokenType.Comma));
         }
 
-        this.consume(TokenType.RParen, 'Expected ")" after parameters');
+        this.consume(
+            TokenType.RParen,
+            vscode.l10n.t('Expected ")" after parameters')
+        );
 
         const body = this.parseBlockStatement();
 
@@ -217,10 +226,17 @@ export class Parser {
     private parseIfStatement(): AST.IfStatement {
         const start = this.previous();
 
-        this.consume(TokenType.LParen, 'Expected "(" after "if"');
+        this.consume(
+            TokenType.LParen,
+            vscode.l10n.t('Expected "(" after "if"')
+        );
         const condition = this.parseExpression();
-        this.consume(TokenType.RParen, 'Expected ")" after condition');
+        this.consume(
+            TokenType.RParen,
+            vscode.l10n.t('Expected ")" after condition')
+        );
 
+        this.skipNewlines();
         const consequent = this.parseStatement()!;
         const elseIfClauses: AST.ElseIfClause[] = [];
         let alternate: AST.Statement | null = null;
@@ -240,12 +256,16 @@ export class Parser {
             }
 
             const elseIfStart = this.previous();
-            this.consume(TokenType.LParen, 'Expected "(" after "else if"');
+            this.consume(
+                TokenType.LParen,
+                vscode.l10n.t('Expected "(" after "else if"')
+            );
             const elseIfCondition = this.parseExpression();
             this.consume(
                 TokenType.RParen,
-                'Expected ")" after else if condition'
+                vscode.l10n.t('Expected ")" after else if condition')
             );
+            this.skipNewlines();
             const elseIfConsequent = this.parseStatement()!;
 
             elseIfClauses.push({
@@ -263,6 +283,7 @@ export class Parser {
                 this.advance();
             }
             if (this.match(TokenType.Else)) {
+                this.skipNewlines();
                 alternate = this.parseStatement();
             } else {
                 this.current = savedPos;
@@ -282,10 +303,17 @@ export class Parser {
     private parseWhileStatement(): AST.WhileStatement {
         const start = this.previous();
 
-        this.consume(TokenType.LParen, 'Expected "(" after "while"');
+        this.consume(
+            TokenType.LParen,
+            vscode.l10n.t('Expected "(" after "while"')
+        );
         const condition = this.parseExpression();
-        this.consume(TokenType.RParen, 'Expected ")" after condition');
+        this.consume(
+            TokenType.RParen,
+            vscode.l10n.t('Expected ")" after condition')
+        );
 
+        this.skipNewlines();
         const body = this.parseStatement()!;
 
         return {
@@ -345,7 +373,10 @@ export class Parser {
     private parseExecuteStatement(): AST.ExecuteStatement {
         const start = this.previous();
 
-        this.consume(TokenType.LParen, 'Expected "(" after "execute"');
+        this.consume(
+            TokenType.LParen,
+            vscode.l10n.t('Expected "(" after "execute"')
+        );
 
         // ( 직후 토큰부터 서브커맨드 시작 위치 기록
         const subcommandStartToken = this.peek();
@@ -375,7 +406,7 @@ export class Parser {
 
         this.consume(
             TokenType.RParen,
-            'Expected ")" after execute subcommands'
+            vscode.l10n.t('Expected ")" after execute subcommands')
         );
 
         const body = this.parseBlockStatement();
@@ -448,7 +479,7 @@ export class Parser {
     private parseBlockStatement(): AST.BlockStatement {
         const start = this.peek();
 
-        this.consume(TokenType.LBrace, 'Expected "{"');
+        this.consume(TokenType.LBrace, vscode.l10n.t('Expected "{"'));
 
         const statements: AST.Statement[] = [];
 
@@ -467,7 +498,7 @@ export class Parser {
             }
         }
 
-        this.consume(TokenType.RBrace, 'Expected "}"');
+        this.consume(TokenType.RBrace, vscode.l10n.t('Expected "}"'));
 
         return {
             type: "BlockStatement",
@@ -507,7 +538,7 @@ export class Parser {
                 };
             }
 
-            this.error("Invalid assignment target");
+            this.error(vscode.l10n.t("Invalid assignment target"));
         }
 
         return expr;
@@ -693,14 +724,14 @@ export class Parser {
 
                 const closeParen = this.consume(
                     TokenType.RParen,
-                    'Expected ")" after arguments'
+                    vscode.l10n.t('Expected ")" after arguments')
                 );
 
                 if (
                     expr.type !== "Identifier" &&
                     expr.type !== "MemberExpression"
                 ) {
-                    this.error("Invalid function call target");
+                    this.error(vscode.l10n.t("Invalid function call target"));
                 }
 
                 expr = {
@@ -714,7 +745,7 @@ export class Parser {
                 const property = this.parseExpression();
                 const closeBracket = this.consume(
                     TokenType.RBracket,
-                    'Expected "]"'
+                    vscode.l10n.t('Expected "]"')
                 );
 
                 expr = {
@@ -810,7 +841,7 @@ export class Parser {
                 } while (this.match(TokenType.Comma));
             }
 
-            const end = this.consume(TokenType.RBracket, 'Expected "]"');
+            const end = this.consume(TokenType.RBracket, vscode.l10n.t('Expected "]"'));
 
             return {
                 type: "ArrayLiteral",
@@ -850,7 +881,7 @@ export class Parser {
         if (this.match(TokenType.LParen)) {
             const start = this.previous();
             const expr = this.parseExpression();
-            const end = this.consume(TokenType.RParen, 'Expected ")"');
+            const end = this.consume(TokenType.RParen, vscode.l10n.t('Expected ")"'));
 
             return {
                 type: "ParenExpression",
@@ -876,7 +907,7 @@ export class Parser {
         }
 
         
-        this.error(`Unexpected token: ${this.peek().value}`);
+        this.error(vscode.l10n.t("Unexpected token: {0}", this.peek().value));
         const token = this.advance();
         return {
             type: "Identifier",
@@ -899,7 +930,7 @@ export class Parser {
             };
         }
 
-        this.error("Expected identifier");
+        this.error(vscode.l10n.t("Expected identifier"));
         return {
             type: "Identifier",
             name: "",
@@ -956,8 +987,14 @@ export class Parser {
     }
 
     private consumeStatementTerminator(): void {
-        
+
         this.match(TokenType.Newline, TokenType.Semicolon);
+    }
+
+    private skipNewlines(): void {
+        while (this.check(TokenType.Newline)) {
+            this.advance();
+        }
     }
 
     private error(message: string): void {

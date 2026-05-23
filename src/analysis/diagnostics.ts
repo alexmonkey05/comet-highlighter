@@ -115,7 +115,7 @@ export class DiagnosticGenerator {
         if (node.name.name.length > 0 && /^[A-Z]/.test(node.name.name)) {
             this.addDiagnostic(
                 node.name.range,
-                vscode.l10n.t("diagnostic.uppercaseFunction"),
+                vscode.l10n.t("Function names starting with uppercase letters may not be recognized by Minecraft"),
                 vscode.DiagnosticSeverity.Warning
             );
         }
@@ -143,7 +143,7 @@ export class DiagnosticGenerator {
         if (node.consequent.type !== "BlockStatement") {
             this.addDiagnostic(
                 node.consequent.range,
-                vscode.l10n.t("diagnostic.ifNoBraces"),
+                vscode.l10n.t("If statement body should be enclosed in braces"),
                 vscode.DiagnosticSeverity.Warning
             );
         }
@@ -154,7 +154,7 @@ export class DiagnosticGenerator {
                 if (elseIf.consequent.type !== "BlockStatement") {
                     this.addDiagnostic(
                         elseIf.consequent.range,
-                        vscode.l10n.t("diagnostic.elseIfNoBraces"),
+                        vscode.l10n.t("Else if statement body should be enclosed in braces"),
                         vscode.DiagnosticSeverity.Warning
                     );
                 }
@@ -168,7 +168,7 @@ export class DiagnosticGenerator {
             if (node.alternate.type !== "BlockStatement") {
                 this.addDiagnostic(
                     node.alternate.range,
-                    vscode.l10n.t("diagnostic.elseNoBraces"),
+                    vscode.l10n.t("Else statement body should be enclosed in braces"),
                     vscode.DiagnosticSeverity.Warning
                 );
             }
@@ -187,7 +187,7 @@ export class DiagnosticGenerator {
         if (this.inFunction === 0) {
             this.addDiagnostic(
                 node.range,
-                vscode.l10n.t("diagnostic.returnOutsideFunction"),
+                vscode.l10n.t("return statement outside of function"),
                 vscode.DiagnosticSeverity.Error
             );
         }
@@ -201,7 +201,7 @@ export class DiagnosticGenerator {
         if (this.inLoop === 0) {
             this.addDiagnostic(
                 node.range,
-                vscode.l10n.t("diagnostic.breakOutsideLoop"),
+                vscode.l10n.t("break statement outside of loop"),
                 vscode.DiagnosticSeverity.Error
             );
         }
@@ -269,7 +269,7 @@ export class DiagnosticGenerator {
                         start: { line: baseRange.start.line, character: col },
                         end: { line: baseRange.start.line, character: col + 1 },
                     },
-                    vscode.l10n.t("diagnostic.semicolonInCommand"),
+                    vscode.l10n.t("';' inside a command is not a statement terminator; use a newline to separate commands"),
                     vscode.DiagnosticSeverity.Warning
                 );
             }
@@ -380,7 +380,7 @@ export class DiagnosticGenerator {
             if (!symbol) {
                 this.addDiagnostic(
                     node.range,
-                    vscode.l10n.t("diagnostic.undefinedIdentifier", node.name),
+                    vscode.l10n.t("Undefined identifier: {0}", node.name),
                     vscode.DiagnosticSeverity.Warning
                 );
             }
@@ -395,7 +395,7 @@ export class DiagnosticGenerator {
                     this.addDiagnostic(
                         node.callee.range,
                         vscode.l10n.t(
-                            "diagnostic.undefinedFunction",
+                            "Undefined function: {0}",
                             node.callee.name
                         ),
                         vscode.DiagnosticSeverity.Warning
@@ -412,7 +412,7 @@ export class DiagnosticGenerator {
                         this.addDiagnostic(
                             node.range,
                             vscode.l10n.t(
-                                "diagnostic.expectedArguments",
+                                "Expected {0} arguments, got {1}",
                                 minParams,
                                 node.arguments.length
                             ),
@@ -422,7 +422,7 @@ export class DiagnosticGenerator {
                         this.addDiagnostic(
                             node.range,
                             vscode.l10n.t(
-                                "diagnostic.expectedAtLeast",
+                                "Expected at least {0} arguments, got {1}",
                                 minParams,
                                 node.arguments.length
                             ),

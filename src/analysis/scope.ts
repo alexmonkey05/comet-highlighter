@@ -315,6 +315,7 @@ export class ScopeAnalyzer {
     }
 
     analyze(program: AST.Program): Scope {
+        this.globalScope.range = program.range;
         this.visitProgram(program);
         return this.globalScope;
     }
