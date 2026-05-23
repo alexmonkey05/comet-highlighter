@@ -29,6 +29,19 @@ export class HoverProvider implements vscode.HoverProvider {
             return null;
         }
 
+        if (identifier.name === "__namespace__") {
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock("__namespace__", "comet");
+            md.appendMarkdown("\n\n" + vscode.l10n.t("hover.dunderNamespace"));
+            return new vscode.Hover(md);
+        }
+        if (identifier.name === "__main__") {
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock("__main__", "comet");
+            md.appendMarkdown("\n\n" + vscode.l10n.t("hover.dunderMain"));
+            return new vscode.Hover(md);
+        }
+
         const symbol = parseResult.scope.resolve(identifier.name);
         if (!symbol) {
             return null;

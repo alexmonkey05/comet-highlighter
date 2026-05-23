@@ -256,7 +256,29 @@ export class DiagnosticGenerator {
         }
     }
 
+    private checkSemicolonInCommand(text: string, baseRange: Range, offset: number): void {
+        let inString = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === '\\' && inString) { i++; continue; }
+            if (ch === '"') inString = !inString;
+            else if (ch === ';' && !inString) {
+                const col = baseRange.start.character + offset + i;
+                this.addDiagnostic(
+                    {
+                        start: { line: baseRange.start.line, character: col },
+                        end: { line: baseRange.start.line, character: col + 1 },
+                    },
+                    vscode.l10n.t("diagnostic.semicolonInCommand"),
+                    vscode.DiagnosticSeverity.Warning
+                );
+            }
+        }
+    }
+
     private visitCommandStatement(node: AST.CommandStatement): void {
+        this.checkSemicolonInCommand(node.command, node.commandRange, 1);
+
         const spyglass = getSpyglassManager();
         if (spyglass.isInitialized()) {
             const errors = spyglass.validateCommand(node.command);
@@ -287,8 +309,10 @@ export class DiagnosticGenerator {
     }
 
     private visitMacroCommandStatement(
-        _node: AST.MacroCommandStatement
-    ): void {}
+        node: AST.MacroCommandStatement
+    ): void {
+        this.checkSemicolonInCommand(node.command, node.commandRange, 2);
+    }
 
     private visitBlockStatement(node: AST.BlockStatement): void {
         const blockScope = this.findScopeForRange(node.range);
@@ -417,11 +441,20 @@ export class DiagnosticGenerator {
     private findScopeForRange(range: Range): Scope | null {
         if (!this.globalScope) return null;
 
+        const rangeContains = (outer: Range, inner: Range): boolean => {
+            const startOk =
+                inner.start.line > outer.start.line ||
+                (inner.start.line === outer.start.line &&
+                    inner.start.character >= outer.start.character);
+            const endOk =
+                inner.end.line < outer.end.line ||
+                (inner.end.line === outer.end.line &&
+                    inner.end.character <= outer.end.character);
+            return startOk && endOk;
+        };
+
         const findScope = (scope: Scope): Scope | null => {
-            if (
-                range.start.line >= scope.range.start.line &&
-                range.end.line <= scope.range.end.line
-            ) {
+            if (rangeContains(scope.range, range)) {
                 for (const child of scope.children) {
                     const found = findScope(child);
                     if (found) return found;

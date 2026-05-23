@@ -30,7 +30,7 @@ export class DocumentManager {
         const lexer = new Lexer(text);
         const tokens = lexer.tokenize();
 
-        const parser = new Parser(tokens);
+        const parser = new Parser(tokens, text);
         const program = parser.parse();
         const errors = parser.getErrors();
 

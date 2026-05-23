@@ -55,5 +55,8 @@
     "completion.local": "로컬",
     "completion.absolute": "절대",
     "hover.declaredAtLine": "{0}번 줄에서 선언됨",
-    "hover.importedModule": "가져온 모듈"
+    "hover.importedModule": "가져온 모듈",
+    "diagnostic.semicolonInCommand": "커맨드 안의 ';'는 명령어 구분자가 아닙니다. 줄바꿈으로 명령을 분리하세요",
+    "hover.dunderNamespace": "모듈 경로로 변환됩니다. 메인 파일에서는 설정된 네임스페이스로, import된 모듈에서는 `namespace:filename/` 형식으로 변환됩니다.",
+    "hover.dunderMain": "파일 위치와 무관하게 항상 루트 네임스페이스로 변환됩니다."
 }

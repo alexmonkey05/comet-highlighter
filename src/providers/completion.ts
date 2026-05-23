@@ -4,6 +4,7 @@ import { BUILTIN_FUNCTIONS } from "../analysis/scope";
 import { Token, TokenType } from "../lexer/token";
 import { Lexer } from "../lexer/lexer";
 import * as AST from "../parser/ast";
+import { Parser } from "../parser/parser";
 import { getSpyglassManager } from "../minecraft/spyglass";
 
 export class CompletionProvider implements vscode.CompletionItemProvider {
@@ -118,7 +119,9 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             if (objectToken?.type === TokenType.Identifier) {
                 const symbol = parseResult.scope.resolve(objectToken.value);
                 if (symbol?.kind === "import") {
-                    return [];
+                    return this.getImportMemberCompletions(
+                        document, objectToken.value, wordRange
+                    );
                 }
             }
             return [];
@@ -533,5 +536,48 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
         item.detail = description;
         if (range) item.range = range;
         return item;
+    }
+
+    private async getImportMemberCompletions(
+        document: vscode.TextDocument,
+        moduleName: string,
+        wordRange?: vscode.Range
+    ): Promise<vscode.CompletionItem[]> {
+        try {
+            const moduleUri = vscode.Uri.joinPath(
+                document.uri, "..", `${moduleName}.planet`
+            );
+            const data = await vscode.workspace.fs.readFile(moduleUri);
+            const text = Array.from(data as Uint8Array, (b: number) => String.fromCharCode(b)).join("");
+
+            const lexer = new Lexer(text);
+            const tokens = lexer.tokenize();
+            const parser = new Parser(tokens, text);
+            const program = parser.parse();
+
+            const items: vscode.CompletionItem[] = [];
+            for (const stmt of program.body) {
+                if (stmt.type === "FuncDeclaration") {
+                    const funcStmt = stmt as AST.FuncDeclaration;
+                    const item = new vscode.CompletionItem(
+                        funcStmt.name.name,
+                        vscode.CompletionItemKind.Function
+                    );
+                    const params = funcStmt.params.map(p => p.name.name);
+                    const paramSnippets = params
+                        .map((p, i) => `\${${i + 1}:${p}}`)
+                        .join(", ");
+                    item.insertText = new vscode.SnippetString(
+                        `${funcStmt.name.name}(${paramSnippets})$0`
+                    );
+                    item.detail = `${moduleName}.${funcStmt.name.name}(${params.join(", ")})`;
+                    if (wordRange) item.range = wordRange;
+                    items.push(item);
+                }
+            }
+            return items;
+        } catch {
+            return [];
+        }
     }
 }

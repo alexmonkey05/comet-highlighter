@@ -20,26 +20,23 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
         const symbols: vscode.DocumentSymbol[] = [];
 
         for (const stmt of parseResult.program.body) {
-            const symbol = this.visitStatement(stmt);
-            if (symbol) {
-                symbols.push(symbol);
-            }
+            symbols.push(...this.visitStatement(stmt));
         }
 
         return symbols;
     }
 
-    private visitStatement(node: AST.Statement): vscode.DocumentSymbol | null {
+    private visitStatement(node: AST.Statement): vscode.DocumentSymbol[] {
         switch (node.type) {
             case "VarDeclaration":
-                return this.createSymbol(
+                return [this.createSymbol(
                     node.name.name,
                     vscode.SymbolKind.Variable,
                     node.range,
                     node.name.range
-                );
+                )];
 
-            case "FuncDeclaration":
+            case "FuncDeclaration": {
                 const funcSymbol = this.createSymbol(
                     node.name.name,
                     vscode.SymbolKind.Function,
@@ -47,7 +44,6 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                     node.name.range
                 );
 
-                
                 for (const param of node.params) {
                     const paramSymbol = this.createSymbol(
                         param.name.name,
@@ -58,44 +54,34 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                     funcSymbol.children.push(paramSymbol);
                 }
 
-                
                 for (const stmt of node.body.body) {
-                    const child = this.visitStatement(stmt);
-                    if (child) {
-                        funcSymbol.children.push(child);
-                    }
+                    funcSymbol.children.push(...this.visitStatement(stmt));
                 }
 
-                return funcSymbol;
+                return [funcSymbol];
+            }
 
             case "ImportStatement":
-                return this.createSymbol(
+                return [this.createSymbol(
                     node.source.name,
                     vscode.SymbolKind.Module,
                     node.range,
                     node.source.range
-                );
+                )];
 
-            case "IfStatement":
-                
+            case "IfStatement": {
                 const ifChildren: vscode.DocumentSymbol[] = [];
 
                 if (node.consequent.type === "BlockStatement") {
                     for (const stmt of node.consequent.body) {
-                        const child = this.visitStatement(stmt);
-                        if (child) {
-                            ifChildren.push(child);
-                        }
+                        ifChildren.push(...this.visitStatement(stmt));
                     }
                 }
 
                 for (const elseIf of node.elseIfClauses) {
                     if (elseIf.consequent.type === "BlockStatement") {
                         for (const stmt of elseIf.consequent.body) {
-                            const child = this.visitStatement(stmt);
-                            if (child) {
-                                ifChildren.push(child);
-                            }
+                            ifChildren.push(...this.visitStatement(stmt));
                         }
                     }
                 }
@@ -105,38 +91,42 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                     node.alternate.type === "BlockStatement"
                 ) {
                     for (const stmt of node.alternate.body) {
-                        const child = this.visitStatement(stmt);
-                        if (child) {
-                            ifChildren.push(child);
-                        }
+                        ifChildren.push(...this.visitStatement(stmt));
                     }
                 }
 
-                
-                return ifChildren.length > 0 ? ifChildren[0] : null;
+                return ifChildren;
+            }
 
-            case "WhileStatement":
+            case "WhileStatement": {
                 if (node.body.type === "BlockStatement") {
+                    const whileChildren: vscode.DocumentSymbol[] = [];
                     for (const stmt of node.body.body) {
-                        const child = this.visitStatement(stmt);
-                        if (child) {
-                            return child;
-                        }
+                        whileChildren.push(...this.visitStatement(stmt));
                     }
+                    return whileChildren;
                 }
-                return null;
+                return [];
+            }
 
-            case "BlockStatement":
+            case "BlockStatement": {
+                const blockChildren: vscode.DocumentSymbol[] = [];
                 for (const stmt of node.body) {
-                    const child = this.visitStatement(stmt);
-                    if (child) {
-                        return child;
-                    }
+                    blockChildren.push(...this.visitStatement(stmt));
                 }
-                return null;
+                return blockChildren;
+            }
+
+            case "ExecuteStatement": {
+                const execChildren: vscode.DocumentSymbol[] = [];
+                for (const stmt of node.body.body) {
+                    execChildren.push(...this.visitStatement(stmt));
+                }
+                return execChildren;
+            }
 
             default:
-                return null;
+                return [];
         }
     }
 

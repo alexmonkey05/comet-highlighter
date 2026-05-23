@@ -12,11 +12,30 @@ export class Parser {
     private current = 0;
     private errors: ParseError[] = [];
     public comments: Token[] = [];
+    private source: string;
+    private lineOffsets: number[];
 
-    constructor(tokens: Token[]) {
-        
+    constructor(tokens: Token[], source: string = "") {
+
         this.comments = tokens.filter(t => t.type === TokenType.Comment);
         this.tokens = tokens.filter(t => t.type !== TokenType.Comment);
+        this.source = source;
+        this.lineOffsets = this.computeLineOffsets(source);
+    }
+
+    private computeLineOffsets(s: string): number[] {
+        const offsets = [0];
+        for (let i = 0; i < s.length; i++) {
+            if (s[i] === "\n") offsets.push(i + 1);
+        }
+        return offsets;
+    }
+
+    private getSourceText(range: Range): string {
+        if (!this.source) return "";
+        const startOff = (this.lineOffsets[range.start.line] ?? 0) + range.start.character;
+        const endOff = (this.lineOffsets[range.end.line] ?? 0) + range.end.character;
+        return this.source.substring(startOff, endOff);
     }
 
     parse(): AST.Program {
@@ -328,9 +347,9 @@ export class Parser {
 
         this.consume(TokenType.LParen, 'Expected "(" after "execute"');
 
-        
-        const subcommandStart = this.peek();
-        let subcommandsText = "";
+        // ( 직후 토큰부터 서브커맨드 시작 위치 기록
+        const subcommandStartToken = this.peek();
+        let subcommandEndToken = this.peek();
         let depth = 1;
 
         while (!this.isAtEnd() && depth > 0) {
@@ -340,17 +359,19 @@ export class Parser {
                 depth--;
                 if (depth === 0) break;
             }
-            subcommandsText += this.peek().value + " ";
+            subcommandEndToken = this.peek();
             this.advance();
         }
 
-        const subcommandEnd = this.previous();
         const subcommandRange = createRange(
-            subcommandStart.range.start.line,
-            subcommandStart.range.start.character,
-            subcommandEnd.range.end.line,
-            subcommandEnd.range.end.character
+            subcommandStartToken.range.start.line,
+            subcommandStartToken.range.start.character,
+            subcommandEndToken.range.end.line,
+            subcommandEndToken.range.end.character
         );
+
+        // source에서 실제 텍스트 추출 — 토큰 join 대신 원본 사용
+        const subcommandsText = this.getSourceText(subcommandRange).trim();
 
         this.consume(
             TokenType.RParen,
@@ -361,7 +382,7 @@ export class Parser {
 
         return {
             type: "ExecuteStatement",
-            subcommands: subcommandsText.trim(),
+            subcommands: subcommandsText,
             subcommandRange,
             body,
             range: this.makeRange(start),
@@ -382,9 +403,10 @@ export class Parser {
     private parseMacroCommandStatement(): AST.MacroCommandStatement {
         const token = this.advance();
 
-        
+
         const macroExpansions: AST.MacroExpansion[] = [];
-        const regex = /\$\(([^)]+)\)/g;
+        // lookbehind로 \$(...) 이스케이프 시퀀스 제외, /$ 프리픽스(2자) 보정
+        const regex = /(?<!\\)\$\(([^)]+)\)/g;
         let match;
 
         while ((match = regex.exec(token.value)) !== null) {
@@ -396,9 +418,9 @@ export class Parser {
                 variable: varName,
                 range: createRange(
                     token.range.start.line,
-                    token.range.start.character + offset,
+                    token.range.start.character + 2 + offset,
                     token.range.start.line,
-                    token.range.start.character + offset + match[0].length
+                    token.range.start.character + 2 + offset + match[0].length
                 ),
             });
         }
@@ -801,11 +823,9 @@ export class Parser {
         if (this.match(TokenType.LBrace)) {
             const start = this.previous();
             let depth = 1;
-            const nbtTokens: Token[] = [start];
 
             while (!this.isAtEnd() && depth > 0) {
                 const token = this.advance();
-                nbtTokens.push(token);
 
                 if (token.type === TokenType.LBrace) {
                     depth++;
@@ -814,13 +834,15 @@ export class Parser {
                 }
             }
 
-            const raw = nbtTokens.map(t => t.value).join("");
             const end = this.previous();
+            const nbtRange = this.combineRanges(start.range, end.range);
+            // source에서 실제 텍스트 추출 — 따옴표·공백 손실 방지
+            const raw = this.getSourceText(nbtRange) || "{" + end.value;
 
             return {
                 type: "NbtLiteral",
                 raw,
-                range: this.combineRanges(start.range, end.range),
+                range: nbtRange,
             };
         }
 

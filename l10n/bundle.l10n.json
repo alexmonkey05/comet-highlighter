@@ -55,5 +55,8 @@
     "completion.local": "Local",
     "completion.absolute": "Absolute",
     "hover.declaredAtLine": "Declared at line {0}",
-    "hover.importedModule": "Imported module"
+    "hover.importedModule": "Imported module",
+    "diagnostic.semicolonInCommand": "';' inside a command is not a statement terminator; use a newline to separate commands",
+    "hover.dunderNamespace": "Resolves to the module path. In the main file, equals the configured namespace; in imported modules, becomes `namespace:filename/`.",
+    "hover.dunderMain": "Always resolves to the configured root namespace, regardless of which file it appears in."
 }
