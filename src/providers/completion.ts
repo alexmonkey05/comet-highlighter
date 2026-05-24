@@ -55,10 +55,12 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
             return mcCompletions.map(comp => {
                 const item = new vscode.CompletionItem(
                     comp.label,
-                    vscode.CompletionItemKind.Function
+                    comp.kind ?? vscode.CompletionItemKind.Keyword
                 );
                 item.detail =
                     comp.detail || vscode.l10n.t("Minecraft command");
+                if (comp.insertText) item.insertText = comp.insertText;
+                if (comp.sortText) item.sortText = comp.sortText;
                 if (wordRange) item.range = wordRange;
                 return item;
             });

@@ -7,7 +7,7 @@ execute(as @a) {
     var item = inventory[i]
     #if (대충 아이템 조건)
       var slot = inventory[i].Slot
-      /item replace entity @s container.^slot& with <아이템>
+      /item replace entity @s container.0 with air
     i = i + 1 
   }
 }

@@ -674,10 +674,6 @@ export class SpyglassManager {
 
         const registryKey = this.resolveRegistryKey(node, "");
         if (registryKey && this.registries[registryKey]) {
-            if (token === "*") {
-                return null;
-            }
-            
             const entries = this.registries[registryKey];
             const normalizedToken = token.replace(/^#/, "");
             const fullId = normalizedToken.includes(":")
@@ -685,6 +681,10 @@ export class SpyglassManager {
                 : `minecraft:${normalizedToken}`;
 
             const baseId = fullId.replace(/\[.*$/, "").replace(/\{.*$/, "");
+
+            if (baseId === "*" || baseId === "minecraft:*") {
+                return null;
+            }
 
             if (
                 !entries.includes(baseId) &&
