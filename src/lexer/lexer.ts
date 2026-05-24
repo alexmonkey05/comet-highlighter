@@ -76,9 +76,13 @@ export class Lexer {
             // 직전 토큰이 `)` 일 때만 단문 폼으로 인정. `{ /cmd }` 같이 같은 줄에서 시작·끝나는
             // 케이스는 lexer 가 `}` 를 가져가버리는 부작용이 있으므로 의도적으로 제외 (블록 안 커맨드는
             // 새 줄에 두는 기존 규칙 유지).
+            // 추가: `f()/foo` 같은 무공백 division 과 충돌 안 하도록 `)` 와 `/` 사이에 공백 1개 이상 요구.
             if (isLowerIdentChar && this.tokens.length > 0) {
                 const prev = this.tokens[this.tokens.length - 1];
-                if (prev.type === TokenType.RParen) {
+                const prevChar =
+                    this.current > 0 ? this.source[this.current - 1] : "";
+                const hasSpaceBefore = prevChar === " " || prevChar === "\t";
+                if (prev.type === TokenType.RParen && hasSpaceBefore) {
                     this.scanCommandLine();
                     return;
                 }

@@ -1530,56 +1530,107 @@ export class SpyglassManager {
 
             let foundLiteral = false;
 
+            // 리터럴 매칭: currentNodes 의 모든 자식 중 일치하는 것 전부 수집.
+            // (다중 후보 보존 → 다음 토큰에서 다른 가지를 탐색할 수 있게)
             for (const node of currentNodes) {
                 if (!node.children) continue;
-                if (
-                    node.children[tokenValue] &&
-                    node.children[tokenValue].type === "literal"
-                ) {
-                    matchedNode = node.children[tokenValue];
-                    matchedParser = matchedNode.parser;
-                    if (matchedNode.redirect) {
-                        const r = this.resolveRedirect(matchedNode.redirect);
-                        if (r) matchedNode = r;
+                const child = node.children[tokenValue];
+                if (child && child.type === "literal") {
+                    let target: CommandNode = child;
+                    if (child.redirect) {
+                        const r = this.resolveRedirect(child.redirect);
+                        if (r) target = r;
                     }
-                    nextNodes.push(matchedNode);
-
-                    if (isFirstLiteral || afterRun) {
-                        matchType = "keyword";
-                        isFirstLiteral = false;
-                        afterRun = false;
-                    } else {
-                        matchType = "function";
+                    nextNodes.push(target);
+                    if (!foundLiteral) {
+                        matchedNode = child;
+                        matchedParser = child.parser;
+                        if (isFirstLiteral || afterRun) {
+                            matchType = "keyword";
+                            isFirstLiteral = false;
+                            afterRun = false;
+                        } else {
+                            matchType = "function";
+                        }
+                        if (tokenValue === "run") afterRun = true;
+                        foundLiteral = true;
                     }
-
-                    if (tokenValue === "run") {
-                        afterRun = true;
-                    }
-
-                    foundLiteral = true;
-                    break;
                 }
             }
 
             if (!foundLiteral) {
+                // 인자 후보 전수 시도.
+                // 1차 필터: validateArgument 결과로 clean / warning-only / 그 외 분류
+                // 2차 정렬: 토큰 모양 vs parser 친화도 점수가 높은 쪽 우선
+                //   - 토큰이 숫자/`~`/`^` 시작이면 좌표·수치 parser 우대
+                //   - 그 외 알파벳 토큰이면 entity/score_holder/game_profile 우대
+                const clean: CommandNode[] = [];
+                const warningOnly: CommandNode[] = [];
+                const all: CommandNode[] = [];
                 for (const node of currentNodes) {
                     if (!node.children) continue;
-                    for (const [key, child] of Object.entries(node.children)) {
-                        if (child.type === "argument") {
-                            matchedNode = child;
-                            matchedParser = child.parser;
-                            if (matchedNode.redirect) {
-                                const r = this.resolveRedirect(
-                                    matchedNode.redirect
-                                );
-                                if (r) matchedNode = r;
-                            }
-                            nextNodes.push(matchedNode);
-                            matchType = this.mapParserToTokenType(child.parser);
-                            break;
+                    for (const [, child] of Object.entries(node.children)) {
+                        if (child.type !== "argument") continue;
+                        let target: CommandNode = child;
+                        if (child.redirect) {
+                            const r = this.resolveRedirect(child.redirect);
+                            if (r) target = r;
                         }
+                        const err = this.validateArgument(
+                            tokenValue,
+                            child,
+                            token.start
+                        );
+                        nextNodes.push(target);
+                        all.push(child);
+                        if (!err) clean.push(child);
+                        else if (err.severity !== "error")
+                            warningOnly.push(child);
                     }
-                    if (nextNodes.length > 0) break;
+                }
+                const tokenLooksNumeric =
+                    /^[~^]/.test(tokenValue) ||
+                    /^-?\d/.test(tokenValue);
+                const scoreCandidate = (c: CommandNode) => {
+                    const p = c.parser || "";
+                    if (tokenLooksNumeric) {
+                        if (
+                            p === "minecraft:vec3" ||
+                            p === "minecraft:vec2" ||
+                            p === "minecraft:block_pos" ||
+                            p === "minecraft:column_pos" ||
+                            p === "minecraft:rotation" ||
+                            p === "brigadier:integer" ||
+                            p === "brigadier:float" ||
+                            p === "brigadier:double" ||
+                            p === "brigadier:long" ||
+                            p === "minecraft:int_range" ||
+                            p === "minecraft:float_range" ||
+                            p === "minecraft:time"
+                        )
+                            return 0;
+                        return 1;
+                    }
+                    if (
+                        p.includes("entity") ||
+                        p === "minecraft:score_holder" ||
+                        p === "minecraft:game_profile"
+                    )
+                        return 0;
+                    return 1;
+                };
+                const sortBest = (arr: CommandNode[]) =>
+                    [...arr].sort(
+                        (a, b) => scoreCandidate(a) - scoreCandidate(b)
+                    );
+                const pick =
+                    sortBest(clean)[0] ||
+                    sortBest(warningOnly)[0] ||
+                    sortBest(all)[0];
+                if (pick) {
+                    matchedNode = pick;
+                    matchedParser = pick.parser;
+                    matchType = this.mapParserToTokenType(pick.parser);
                 }
             }
 
