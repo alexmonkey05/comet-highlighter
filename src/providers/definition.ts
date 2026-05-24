@@ -40,7 +40,8 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
             return null;
         }
 
-        const symbol = parseResult.scope.resolve(name);
+        const scope = parseResult.scope.findScope(pos);
+        const symbol = scope.resolve(name);
         if (!symbol || symbol.kind === "builtin") {
             return null;
         }

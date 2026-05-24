@@ -59,6 +59,28 @@ export class Scope {
     resolveLocal(name: string): Symbol | null {
         return this.symbols.get(name) || null;
     }
+
+    findScope(pos: { line: number; character: number }): Scope {
+        for (const child of this.children) {
+            if (this.rangeContains(child.range, pos)) {
+                return child.findScope(pos);
+            }
+        }
+        return this;
+    }
+
+    private rangeContains(range: Range, pos: { line: number; character: number }): boolean {
+        if (pos.line < range.start.line || pos.line > range.end.line) {
+            return false;
+        }
+        if (pos.line === range.start.line && pos.character < range.start.character) {
+            return false;
+        }
+        if (pos.line === range.end.line && pos.character > range.end.character) {
+            return false;
+        }
+        return true;
+    }
 }
 
 

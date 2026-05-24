@@ -48,7 +48,8 @@ export class HoverProvider implements vscode.HoverProvider {
             return new vscode.Hover(md);
         }
 
-        const symbol = parseResult.scope.resolve(name);
+        const scope = parseResult.scope.findScope(pos);
+        const symbol = scope.resolve(name);
         if (!symbol) {
             return null;
         }
