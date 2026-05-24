@@ -322,14 +322,18 @@ export class Lexer {
         let value = "";
         while (!this.isAtEnd()) {
             const c = this.peek();
-            if (c === "\\" && this.peekNext() === "\n") {
+            if (c === "\\" && (this.peekNext() === "\n" || this.peekNext() === "\r")) {
                 this.advance(); // consume '\'
+                if (this.peek() === "\r" && this.peekNext() === "\n") {
+                    this.advance(); // consume '\r'
+                }
                 this.advance(); // consume '\n'
                 this.line++;
                 this.column = 0;
                 this.lineStart = this.current;
                 continue;
             }
+            if (c === "\r" && this.peekNext() === "\n") break;
             if (c === "\n") break;
             value += this.advance();
         }

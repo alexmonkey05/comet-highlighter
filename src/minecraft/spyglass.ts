@@ -1482,7 +1482,7 @@ export class SpyglassManager {
             } else if (c === "}" || c === "]") {
                 braceDepth--;
                 current += c;
-            } else if (c === " " && braceDepth === 0) {
+            } else if (/\s/.test(c) && braceDepth === 0) {
                 if (current.length > 0) {
                     tokens.push(current);
                     current = "";
@@ -2528,7 +2528,7 @@ export class SpyglassManager {
         for (let i = 0; i < text.length; i++) {
             const c = text[i];
 
-            if (startIndex === -1 && c !== " ") {
+            if (startIndex === -1 && !/\s/.test(c)) {
                 startIndex = i;
             }
 
@@ -2543,7 +2543,7 @@ export class SpyglassManager {
             } else if (c === "}" || c === "]") {
                 braceDepth--;
                 current += c;
-            } else if (c === " " && braceDepth === 0) {
+            } else if (/\s/.test(c) && braceDepth === 0) {
                 if (current.length > 0) {
                     tokens.push({
                         value: current,
