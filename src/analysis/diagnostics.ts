@@ -285,8 +285,9 @@ export class DiagnosticGenerator {
 
             for (const error of errors) {
                 const startLine = node.commandRange.start.line;
+                // commandRange는 `/`부터 시작하지만 node.command/error.start는 `/`를 제외함 → +1 보정
                 const startCol =
-                    node.commandRange.start.character + error.start;
+                    node.commandRange.start.character + 1 + error.start;
 
                 this.diagnostics.push({
                     range: new vscode.Range(
