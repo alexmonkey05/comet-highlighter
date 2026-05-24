@@ -33,15 +33,23 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                     node.name.name,
                     vscode.SymbolKind.Variable,
                     node.range,
-                    node.name.range
+                    node.name.range,
+                    node.varType || ""
                 )];
 
             case "FuncDeclaration": {
+                const paramsStr = node.params
+                    .map(p => p.paramType ? `${p.name.name}: ${p.paramType}` : p.name.name)
+                    .join(", ");
+                const returnStr = node.returnType ? ` → ${node.returnType}` : "";
+                const detail = `(${paramsStr})${returnStr}`;
+
                 const funcSymbol = this.createSymbol(
                     node.name.name,
                     vscode.SymbolKind.Function,
                     node.range,
-                    node.name.range
+                    node.name.range,
+                    detail
                 );
 
                 for (const param of node.params) {
@@ -49,7 +57,8 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
                         param.name.name,
                         vscode.SymbolKind.Variable,
                         param.range,
-                        param.name.range
+                        param.name.range,
+                        param.paramType || ""
                     );
                     funcSymbol.children.push(paramSymbol);
                 }
@@ -134,11 +143,12 @@ export class DocumentSymbolProvider implements vscode.DocumentSymbolProvider {
         name: string,
         kind: vscode.SymbolKind,
         range: AST.Range,
-        selectionRange: AST.Range
+        selectionRange: AST.Range,
+        detail: string = ""
     ): vscode.DocumentSymbol {
         return new vscode.DocumentSymbol(
             name,
-            "",
+            detail,
             kind,
             rangeToVscodeRange(range),
             rangeToVscodeRange(selectionRange)

@@ -158,12 +158,23 @@ export class Parser {
                     name: "",
                     range: this.peek().range,
                 },
+                varType: null,
                 init: null,
                 range: start.range,
             };
         }
 
         const name = this.parseIdentifier();
+        let varType: string | null = null;
+
+        if (this.match(TokenType.Colon)) {
+            const typeToken = this.consume(
+                TokenType.Identifier,
+                vscode.l10n.t("Expected type name")
+            );
+            varType = typeToken.value;
+        }
+
         let init: AST.Expression | null = null;
 
         if (this.match(TokenType.Assign)) {
@@ -175,6 +186,7 @@ export class Parser {
         return {
             type: "VarDeclaration",
             name,
+            varType,
             init,
             range: this.makeRange(start),
         };
@@ -182,6 +194,7 @@ export class Parser {
 
     private parseFuncDeclaration(): AST.FuncDeclaration {
         const start = this.previous();
+        const doc = this.getDocumentation(start);
 
         const name = this.parseIdentifier();
 
@@ -190,7 +203,7 @@ export class Parser {
             vscode.l10n.t('Expected "(" after function name')
         );
 
-        const params: AST.VarDeclaration[] = [];
+        const params: AST.ParamDeclaration[] = [];
         this.skipNewlines();
         if (!this.check(TokenType.RParen)) {
             do {
@@ -201,10 +214,19 @@ export class Parser {
                     );
                 }
                 const paramName = this.parseIdentifier();
+                let paramType: string | null = null;
+                if (this.match(TokenType.Colon)) {
+                    const typeToken = this.consume(
+                        TokenType.Identifier,
+                        vscode.l10n.t("Expected type name")
+                    );
+                    paramType = typeToken.value;
+                }
+
                 params.push({
-                    type: "VarDeclaration",
+                    type: "ParamDeclaration",
                     name: paramName,
-                    init: null,
+                    paramType,
                     range: paramName.range,
                 });
                 this.skipNewlines();
@@ -217,15 +239,44 @@ export class Parser {
             vscode.l10n.t('Expected ")" after parameters')
         );
 
+        let returnType: string | null = null;
+        if (this.match(TokenType.Colon)) {
+            const typeToken = this.consume(
+                TokenType.Identifier,
+                vscode.l10n.t("Expected return type name")
+            );
+            returnType = typeToken.value;
+        }
+
         const body = this.parseBlockStatement();
 
         return {
             type: "FuncDeclaration",
             name,
             params,
+            returnType,
+            documentation: doc,
             body,
             range: this.makeRange(start),
         };
+    }
+
+    private getDocumentation(target: Token): string | null {
+        const comments: string[] = [];
+        let targetLine = target.range.start.line;
+
+        // target 바로 윗줄부터 연속된 주석들을 찾음
+        for (let i = this.comments.length - 1; i >= 0; i--) {
+            const comment = this.comments[i];
+            if (comment.range.end.line === targetLine - 1) {
+                comments.unshift(comment.value.trim());
+                targetLine--;
+            } else if (comment.range.end.line < targetLine - 1) {
+                break;
+            }
+        }
+
+        return comments.length > 0 ? comments.join("\n") : null;
     }
 
     private parseIfStatement(): AST.IfStatement {

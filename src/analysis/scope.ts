@@ -371,6 +371,7 @@ export class ScopeAnalyzer {
             name: node.name.name,
             kind: "variable",
             declarationRange: node.name.range,
+            returnType: node.varType || undefined,
         });
 
         if (node.init) {
@@ -382,6 +383,7 @@ export class ScopeAnalyzer {
         
         const params: ParamInfo[] = node.params.map(p => ({
             name: p.name.name,
+            type: p.paramType || undefined,
         }));
 
         this.currentScope.define({
@@ -389,6 +391,8 @@ export class ScopeAnalyzer {
             kind: "function",
             declarationRange: node.name.range,
             params,
+            returnType: node.returnType || undefined,
+            documentation: node.documentation || undefined,
         });
 
         
@@ -402,6 +406,7 @@ export class ScopeAnalyzer {
                 name: param.name.name,
                 kind: "parameter",
                 declarationRange: param.name.range,
+                returnType: param.paramType || undefined,
             });
         }
 

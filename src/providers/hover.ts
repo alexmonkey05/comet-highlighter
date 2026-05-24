@@ -58,10 +58,11 @@ export class HoverProvider implements vscode.HoverProvider {
 
         switch (symbol.kind) {
             case "function":
-                markdown.appendCodeblock(
-                    `def ${symbol.name}(${this.formatParams(symbol.params || [])})`,
-                    "comet"
-                );
+                const funcSignature = `def ${symbol.name}(${this.formatParams(symbol.params || [])})`;
+                const funcReturnType = symbol.returnType
+                    ? ` → ${symbol.returnType}`
+                    : "";
+                markdown.appendCodeblock(funcSignature + funcReturnType, "comet");
                 if (symbol.documentation) {
                     markdown.appendMarkdown("\n\n" + symbol.documentation);
                 }

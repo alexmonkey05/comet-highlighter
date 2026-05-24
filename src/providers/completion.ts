@@ -385,18 +385,21 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                 switch (symbol.kind) {
                     case "function":
                         kind = vscode.CompletionItemKind.Function;
+                        const returnTypeStr = symbol.returnType ? ` → ${symbol.returnType}` : "";
                         detail = vscode.l10n.t(
                             "function {0}",
-                            `${name}(${this.formatParams(symbol.params || [])})`
+                            `${name}(${this.formatParams(symbol.params || [])})${returnTypeStr}`
                         );
                         break;
                     case "variable":
                         kind = vscode.CompletionItemKind.Variable;
-                        detail = vscode.l10n.t("variable {0}", name);
+                        const varTypeStr = symbol.returnType ? `: ${symbol.returnType}` : "";
+                        detail = vscode.l10n.t("variable {0}{1}", name, varTypeStr);
                         break;
                     case "parameter":
                         kind = vscode.CompletionItemKind.Variable;
-                        detail = vscode.l10n.t("parameter {0}", name);
+                        const paramTypeStr = symbol.returnType ? `: ${symbol.returnType}` : "";
+                        detail = vscode.l10n.t("parameter {0}{1}", name, paramTypeStr);
                         break;
                     case "import":
                         kind = vscode.CompletionItemKind.Module;
@@ -424,6 +427,10 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
 
                 const item = new vscode.CompletionItem(name, kind);
                 item.detail = detail;
+
+                if (symbol.documentation) {
+                    item.documentation = new vscode.MarkdownString(symbol.documentation);
+                }
 
                 if (symbol.kind === "function") {
                     const paramSnippets = (symbol.params || [])
@@ -565,14 +572,20 @@ export class CompletionProvider implements vscode.CompletionItemProvider {
                         funcStmt.name.name,
                         vscode.CompletionItemKind.Function
                     );
-                    const params = funcStmt.params.map(p => p.name.name);
-                    const paramSnippets = params
-                        .map((p, i) => `\${${i + 1}:${p}}`)
+                    const params = funcStmt.params.map(p => 
+                        p.paramType ? `${p.name.name}: ${p.paramType}` : p.name.name
+                    );
+                    const paramSnippets = funcStmt.params
+                        .map((p, i) => `\${${i + 1}:${p.name.name}}`)
                         .join(", ");
                     item.insertText = new vscode.SnippetString(
                         `${funcStmt.name.name}(${paramSnippets})$0`
                     );
-                    item.detail = `${moduleName}.${funcStmt.name.name}(${params.join(", ")})`;
+                    const returnStr = funcStmt.returnType ? ` → ${funcStmt.returnType}` : "";
+                    item.detail = `${moduleName}.${funcStmt.name.name}(${params.join(", ")})${returnStr}`;
+                    if (funcStmt.documentation) {
+                        item.documentation = new vscode.MarkdownString(funcStmt.documentation);
+                    }
                     if (wordRange) item.range = wordRange;
                     items.push(item);
                 }

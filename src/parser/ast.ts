@@ -33,6 +33,7 @@ export type Statement =
 export interface VarDeclaration {
     type: "VarDeclaration";
     name: Identifier;
+    varType: string | null;
     init: Expression | null;
     range: Range;
 }
@@ -40,8 +41,17 @@ export interface VarDeclaration {
 export interface FuncDeclaration {
     type: "FuncDeclaration";
     name: Identifier;
-    params: VarDeclaration[];
+    params: ParamDeclaration[];
+    returnType: string | null;
+    documentation: string | null;
     body: BlockStatement;
+    range: Range;
+}
+
+export interface ParamDeclaration {
+    type: "ParamDeclaration";
+    name: Identifier;
+    paramType: string | null;
     range: Range;
 }
 
