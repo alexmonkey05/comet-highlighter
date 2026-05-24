@@ -64,7 +64,8 @@ export class Parser {
             }
         }
 
-        const endRange = this.previous().range;
+        // 빈 입력에서는 previous() 가 undefined — startRange 로 폴백.
+        const endRange = this.previous()?.range ?? startRange;
         return {
             type: "Program",
             body: statements,
@@ -190,8 +191,10 @@ export class Parser {
         );
 
         const params: AST.VarDeclaration[] = [];
+        this.skipNewlines();
         if (!this.check(TokenType.RParen)) {
             do {
+                this.skipNewlines();
                 if (!this.match(TokenType.Var)) {
                     this.error(
                         vscode.l10n.t('Expected "var" before parameter name')
@@ -204,8 +207,10 @@ export class Parser {
                     init: null,
                     range: paramName.range,
                 });
+                this.skipNewlines();
             } while (this.match(TokenType.Comma));
         }
+        this.skipNewlines();
 
         this.consume(
             TokenType.RParen,
@@ -230,7 +235,9 @@ export class Parser {
             TokenType.LParen,
             vscode.l10n.t('Expected "(" after "if"')
         );
+        this.skipNewlines();
         const condition = this.parseExpression();
+        this.skipNewlines();
         this.consume(
             TokenType.RParen,
             vscode.l10n.t('Expected ")" after condition')
@@ -260,7 +267,9 @@ export class Parser {
                 TokenType.LParen,
                 vscode.l10n.t('Expected "(" after "else if"')
             );
+            this.skipNewlines();
             const elseIfCondition = this.parseExpression();
+            this.skipNewlines();
             this.consume(
                 TokenType.RParen,
                 vscode.l10n.t('Expected ")" after else if condition')
@@ -307,7 +316,9 @@ export class Parser {
             TokenType.LParen,
             vscode.l10n.t('Expected "(" after "while"')
         );
+        this.skipNewlines();
         const condition = this.parseExpression();
+        this.skipNewlines();
         this.consume(
             TokenType.RParen,
             vscode.l10n.t('Expected ")" after condition')
@@ -409,7 +420,29 @@ export class Parser {
             vscode.l10n.t('Expected ")" after execute subcommands')
         );
 
-        const body = this.parseBlockStatement();
+        // body 는 블록 `{ ... }` 또는 단문(커맨드/매크로/execute 등) 모두 허용.
+        // `execute(if ...) /say hi` 처럼 한 줄 폼을 지원.
+        this.skipNewlines();
+        let body: AST.BlockStatement;
+        if (this.check(TokenType.LBrace)) {
+            body = this.parseBlockStatement();
+        } else {
+            const stmtStart = this.peek();
+            const single = this.parseStatement();
+            const bodyRange = single
+                ? single.range
+                : createRange(
+                      stmtStart.range.start.line,
+                      stmtStart.range.start.character,
+                      stmtStart.range.end.line,
+                      stmtStart.range.end.character
+                  );
+            body = {
+                type: "BlockStatement",
+                body: single ? [single] : [],
+                range: bodyRange,
+            };
+        }
 
         return {
             type: "ExecuteStatement",
@@ -713,14 +746,18 @@ export class Parser {
 
         while (true) {
             if (this.match(TokenType.LParen)) {
-                
+
                 const args: AST.Expression[] = [];
 
+                this.skipNewlines();
                 if (!this.check(TokenType.RParen)) {
                     do {
+                        this.skipNewlines();
                         args.push(this.parseExpression());
+                        this.skipNewlines();
                     } while (this.match(TokenType.Comma));
                 }
+                this.skipNewlines();
 
                 const closeParen = this.consume(
                     TokenType.RParen,
@@ -841,16 +878,20 @@ export class Parser {
             };
         }
 
-        
+
         if (this.match(TokenType.LBracket)) {
             const start = this.previous();
             const elements: AST.Expression[] = [];
 
+            this.skipNewlines();
             if (!this.check(TokenType.RBracket)) {
                 do {
+                    this.skipNewlines();
                     elements.push(this.parseExpression());
+                    this.skipNewlines();
                 } while (this.match(TokenType.Comma));
             }
+            this.skipNewlines();
 
             const end = this.consume(TokenType.RBracket, vscode.l10n.t('Expected "]"'));
 
@@ -888,10 +929,12 @@ export class Parser {
             };
         }
 
-        
+
         if (this.match(TokenType.LParen)) {
             const start = this.previous();
+            this.skipNewlines();
             const expr = this.parseExpression();
+            this.skipNewlines();
             const end = this.consume(TokenType.RParen, vscode.l10n.t('Expected ")"'));
 
             return {

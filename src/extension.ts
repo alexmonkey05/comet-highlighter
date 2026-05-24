@@ -211,7 +211,8 @@ function updateDiagnostics(document: vscode.TextDocument): void {
     const diagnosticGenerator = new DiagnosticGenerator();
     const diagnostics = diagnosticGenerator.generate(
         parseResult.program,
-        parseResult.errors
+        parseResult.errors,
+        document.getText()
     );
 
     diagnosticCollection.set(document.uri, diagnostics);

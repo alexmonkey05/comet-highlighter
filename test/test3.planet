@@ -1,3 +1,8 @@
-import test2
-
-print(test2.asdf)
+execute(if score "@s" "40planet_level" > "@s" "40planet_rpg_level"){ # 레벨업
+            /scoreboard players operation temp 40planet_num = @s 40planet_level
+            /scoreboard players operation temp 40planet_num -= @s 40planet_rpg_level
+            /scoreboard players operation temp 40planet_num *= point_per_level 40planet_num
+            /scoreboard players operation @s 40planet_stat_point += temp 40planet_num
+            /scoreboard players operation @s 40planet_rpg_level = @s 40planet_level
+            /function __namespace__:save
+        }

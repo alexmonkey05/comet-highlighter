@@ -23,16 +23,25 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
         const parseResult = this.documentManager.parse(document);
         const pos = vscodePositionToPosition(position);
 
-        const identifier = this.findIdentifierAtPosition(
+        const node = this.findNodeAtPosition(
             parseResult.program,
             pos
         );
-        if (!identifier) {
+        if (!node) {
             return null;
         }
 
-        const symbol = parseResult.scope.resolve(identifier.name);
-        if (!symbol) {
+        let name = "";
+        if (node.type === "Identifier") {
+            name = node.name;
+        } else if (node.type === "StringLiteral") {
+            name = node.value;
+        } else {
+            return null;
+        }
+
+        const symbol = parseResult.scope.resolve(name);
+        if (!symbol || symbol.kind === "builtin") {
             return null;
         }
 
@@ -51,16 +60,16 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
         );
     }
 
-    private findIdentifierAtPosition(
+    private findNodeAtPosition(
         program: AST.Program,
         pos: Position
-    ): AST.Identifier | null {
-        let found: AST.Identifier | null = null;
+    ): AST.Identifier | AST.StringLiteral | null {
+        let found: any = null;
 
         const visitNode = (node: any): void => {
             if (!node || typeof node !== "object") return;
 
-            if (node.type === "Identifier" && node.range) {
+            if ((node.type === "Identifier" || node.type === "StringLiteral") && node.range) {
                 if (this.rangeContainsPosition(node.range, pos)) {
                     found = node;
                 }

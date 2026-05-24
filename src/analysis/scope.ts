@@ -209,8 +209,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [],
         returnType: "bool",
-        documentation:
-            "Check if the current file is being imported as a module",
+        documentation: "Check if the current file is being imported as a module",
     },
     {
         name: "divide",
@@ -524,8 +523,20 @@ export class ScopeAnalyzer {
         if (funcName === "set_score" || funcName === "get_score") {
             const target = getArgValue(args[0]);
             const objective = getArgValue(args[1]);
+            
+            if (objective) {
+                // 목적어 등록 (아직 등록되지 않은 경우에만)
+                if (!this.globalScope.resolveLocal(objective)) {
+                    this.globalScope.define({
+                        name: objective,
+                        kind: "score",
+                        declarationRange: args[1].range,
+                    });
+                }
+            }
+
             if (target && objective) {
-                
+                // 타겟 등록 (스코어 정보 포함)
                 this.globalScope.define({
                     name: target,
                     kind: "score",
@@ -546,7 +557,5 @@ export class ScopeAnalyzer {
                 }
             }
         }
-        
-        
     }
 }

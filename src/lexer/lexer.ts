@@ -52,18 +52,41 @@ export class Lexer {
             return;
         }
 
-        
+
         const isLineStart = this.column === 0 || this.isLineStart();
 
-        
-        if (isLineStart && this.peek() === "/") {
-            
-            if (this.peekNext() === "#") {
-                this.scanComment(); 
+        // `/` 가 커맨드라인을 시작하는 조건:
+        //   (a) 라인 시작 (들여쓰기 후), 또는
+        //   (b) 직전 토큰이 `)` / `}` / `{` / `;` 이고 `/` 바로 다음 글자가 [a-z_] 일 때
+        //       — 단문 폼 `execute(...) /say hi`, 블록 시작 `{ /say hi }`, 등.
+        //       나눗셈 연산자 `a / b` 와 충돌 안 함 (직전이 식별자/숫자라 (b) 불성립).
+        if (this.peek() === "/") {
+            const nextCh = this.peekNext();
+            const isCommentStart = nextCh === "#";
+            if (isCommentStart && isLineStart) {
+                this.scanComment();
                 return;
             }
-            this.scanCommandLine();
-            return;
+            if (isLineStart) {
+                this.scanCommandLine();
+                return;
+            }
+            const isLowerIdentChar =
+                (nextCh >= "a" && nextCh <= "z") || nextCh === "_";
+            // 직전 토큰이 `)` 일 때만 단문 폼으로 인정. `{ /cmd }` 같이 같은 줄에서 시작·끝나는
+            // 케이스는 lexer 가 `}` 를 가져가버리는 부작용이 있으므로 의도적으로 제외 (블록 안 커맨드는
+            // 새 줄에 두는 기존 규칙 유지).
+            // 추가: `f()/foo` 같은 무공백 division 과 충돌 안 하도록 `)` 와 `/` 사이에 공백 1개 이상 요구.
+            if (isLowerIdentChar && this.tokens.length > 0) {
+                const prev = this.tokens[this.tokens.length - 1];
+                const prevChar =
+                    this.current > 0 ? this.source[this.current - 1] : "";
+                const hasSpaceBefore = prevChar === " " || prevChar === "\t";
+                if (prev.type === TokenType.RParen && hasSpaceBefore) {
+                    this.scanCommandLine();
+                    return;
+                }
+            }
         }
 
         
@@ -284,28 +307,44 @@ export class Lexer {
         const startLine = this.line;
         const startColumn = this.column;
 
-        this.advance(); 
+        this.advance();
 
-        
+
         const isMacro = this.peek() === "$";
         if (isMacro) {
-            this.advance(); 
-        }
-
-        
-        const start = this.current;
-        while (!this.isAtEnd() && this.peek() !== "\n") {
             this.advance();
         }
 
-        const commandText = this.source.substring(start, this.current);
+        // 본문 누적. 처리 규칙:
+        //  - `\` + 개행  : 라인 연속 (둘 다 소비, 줄 카운터 이동, 토큰 본문에는 미포함)
+        //  - 그 외 백슬래시는 그대로 보존 (NBT/문자열의 `\"`, comet 의 `\$` 이스케이프 등은
+        //    이후 validator/diagnostics 단계에서 의미별로 해석).
+        let value = "";
+        while (!this.isAtEnd()) {
+            const c = this.peek();
+            if (c === "\\" && (this.peekNext() === "\n" || this.peekNext() === "\r")) {
+                this.advance(); // consume '\'
+                if (this.peek() === "\r" && this.peekNext() === "\n") {
+                    this.advance(); // consume '\r'
+                }
+                this.advance(); // consume '\n'
+                this.line++;
+                this.column = 0;
+                this.lineStart = this.current;
+                continue;
+            }
+            if (c === "\r" && this.peekNext() === "\n") break;
+            if (c === "\n") break;
+            value += this.advance();
+        }
+
         const tokenType = isMacro
             ? TokenType.MacroCommandLine
             : TokenType.CommandLine;
 
         this.addToken(
             tokenType,
-            commandText,
+            value,
             this.makeRange(startLine, startColumn)
         );
     }

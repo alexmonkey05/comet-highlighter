@@ -244,16 +244,19 @@ export class SpyglassManager {
         let apiVersion = mcVersion;
         this.version = apiVersion;
 
+        // 캐시 키에 schema 버전 포함. 데이터 모델이 바뀌거나 옛 캐시가 신뢰 못 할 때 숫자를 올려서
+        // 사용자가 수동으로 globalStorage 를 비우지 않아도 자동으로 재페치되도록.
+        const SCHEMA = "v2";
         const fetchData = async (ver: string) => {
             console.log(`[COMET] Fetching Spyglass data for MC ${ver}...`);
             return Promise.all([
                 this.fetchJson<CommandTree>(
                     `https://api.spyglassmc.com/mcje/versions/${ver}/commands`,
-                    `spyglass-commands-${ver}.json`
+                    `spyglass-commands-${ver}-${SCHEMA}.json`
                 ),
                 this.fetchJson<RegistryData>(
                     `https://api.spyglassmc.com/mcje/versions/${ver}/registries`,
-                    `spyglass-registries-${ver}.json`
+                    `spyglass-registries-${ver}-${SCHEMA}.json`
                 ),
             ]);
         };
@@ -299,210 +302,277 @@ export class SpyglassManager {
         command: string,
         options: { ignoreIncomplete?: boolean } = {}
     ): CommandValidationError[] {
-        const errors: CommandValidationError[] = [];
-
-        if (!this.initialized || !this.commandTree) {
-            return errors;
-        }
+        if (!this.initialized || !this.commandTree) return [];
 
         const cleanCommand = command.startsWith("/")
             ? command.substring(1)
             : command;
+        if (cleanCommand.trim() === "") return [];
 
-        if (cleanCommand.trim() === "") {
-            return errors;
-        }
+        // 위치 정보 포함 토큰화 (offset 보존). slashOffset 만큼 글로벌 좌표 보정.
+        const ranges = this.tokenizeWithRanges(cleanCommand);
+        if (ranges.length === 0) return [];
 
-        const tokens = this.tokenize(cleanCommand.trim());
-        if (tokens.length === 0) {
-            return errors;
-        }
+        const slashOffset = command.startsWith("/") ? 1 : 0;
+        const tokens = ranges.map(r => r.value);
+        const offsets = ranges.map(r => slashOffset + r.start);
+        const commandTotalLength = command.length;
 
         const firstToken = tokens[0];
         if (!this.commandTree.children[firstToken]) {
-            errors.push({
-                start: command.startsWith("/") ? 1 : 0,
-                length: firstToken.length,
-                message: vscode.l10n.t("Unknown command: {0}", firstToken),
-                severity: "error",
-            });
-            return errors;
-        }
-
-        let currentNodes: CommandNode[] = [this.commandTree];
-        let tokenIndex = 0;
-        let currentOffset = command.startsWith("/") ? 1 : 0;
-        let hasExecutable = false;
-
-        while (tokenIndex < tokens.length) {
-            const token = tokens[tokenIndex];
-            const nextNodes: CommandNode[] = [];
-            let foundMatch = false;
-            let foundLiteral = false;
-            let argSkip = 0;
-
-            let hasRedirect = false;
-
-            for (const node of currentNodes) {
-                if (!node.children) continue;
-
-                if (node.children[token]?.type === "literal") {
-                    const originalNode = node.children[token];
-
-                    if (originalNode.executable) {
-                        hasExecutable = true;
-                    }
-
-                    let targetNode = originalNode;
-                    if (targetNode.redirect) {
-                        hasRedirect = true;
-                        const redirected = this.resolveRedirect(
-                            targetNode.redirect
-                        );
-                        if (redirected) targetNode = redirected;
-                    }
-                    nextNodes.push(targetNode);
-                    foundLiteral = true;
-                    foundMatch = true;
-                    break;
-                }
-            }
-
-            if (!foundLiteral) {
-                for (const node of currentNodes) {
-                    if (!node.children) continue;
-                    for (const [key, child] of Object.entries(node.children)) {
-                        if (child.type === "argument") {
-                            if (child.executable) {
-                                hasExecutable = true;
-                            }
-
-                            let targetNode = child;
-                            if (targetNode.redirect) {
-                                hasRedirect = true;
-                                const redirected = this.resolveRedirect(
-                                    targetNode.redirect
-                                );
-                                if (redirected) targetNode = redirected;
-                            }
-                            nextNodes.push(targetNode);
-                            foundMatch = true;
-
-                            const count = SpyglassManager.getParserTokenCount(
-                                child.parser || ""
-                            );
-                            argSkip = Math.max(argSkip, count - 1);
-
-                            if (
-                                child.parser === "minecraft:message" ||
-                                (child.parser === "brigadier:string" && child.properties?.type === "greedy")
-                            ) {
-                                argSkip = Math.max(argSkip, tokens.length - tokenIndex - 1);
-                            }
-
-
-                            const validationError = this.validateArgument(
-                                token,
-                                child,
-                                currentOffset
-                            );
-                            if (validationError) {
-                                errors.push(validationError);
-                            }
-
-                            if (child.parser === "minecraft:particle") {
-                                errors.push(
-                                    ...this.validateParticleArg(
-                                        token,
-                                        currentOffset
-                                    )
-                                );
-                            }
-                            break;
-                        }
-                    }
-                    if (nextNodes.length > 0) break;
-                }
-            }
-
-            if (!foundMatch && tokenIndex > 0) {
-                const expectedTokens = this.getExpectedTokens(currentNodes);
-                if (expectedTokens.length > 0) {
-                    const expected = expectedTokens.slice(0, 5).join(", ");
-                    errors.push({
-                        start: currentOffset,
-                        length: token.length,
-                        message: vscode.l10n.t(
-                            "Unexpected argument: {0}. Expected: {1}{2}",
-                            token,
-                            expected,
-                            expectedTokens.length > 5 ? "..." : ""
-                        ),
-                        severity: "error",
-                    });
-                } else {
-                    errors.push({
-                        start: currentOffset,
-                        length: token.length,
-                        message: vscode.l10n.t(
-                            "Unexpected argument: {0}. Command should end here.",
-                            token
-                        ),
-                        severity: "error",
-                    });
-                }
-            }
-
-            if (token === "run") {
-                currentNodes = [this.commandTree];
-                hasExecutable = false;
-            } else if (nextNodes.length > 0) {
-                currentNodes = nextNodes;
-            }
-
-            if (
-                hasRedirect &&
-                tokenIndex + 1 + (foundLiteral ? 0 : argSkip) < tokens.length
-            ) {
-                hasExecutable = false;
-            }
-
-            const skip = foundLiteral ? 0 : argSkip;
-            let consumed = token.length + 1;
-            for (let i = 1; i <= skip; i++) {
-                if (tokenIndex + i < tokens.length) {
-                    consumed += tokens[tokenIndex + i].length + 1;
-                }
-            }
-            currentOffset += consumed;
-            tokenIndex += 1 + skip;
-        }
-
-        const hasExecutableNode =
-            hasExecutable || currentNodes.some(node => node && node.executable);
-
-        if (
-            !options.ignoreIncomplete &&
-            !hasExecutableNode &&
-            currentNodes[0] !== this.commandTree
-        ) {
-            const expectedTokens = this.getExpectedTokens(currentNodes);
-            if (expectedTokens.length > 0) {
-                const expected = expectedTokens.slice(0, 5).join(", ");
-                errors.push({
-                    start: 0,
-                    length: command.length,
-                    message: vscode.l10n.t(
-                        "Incomplete command. Expected: {0}{1}",
-                        expected,
-                        expectedTokens.length > 5 ? "..." : ""
-                    ),
+            return [
+                {
+                    start: offsets[0],
+                    length: firstToken.length,
+                    message: vscode.l10n.t("Unknown command: {0}", firstToken),
                     severity: "error",
+                },
+            ];
+        }
+
+        const result = this.tryParseCommand(
+            [this.commandTree],
+            tokens,
+            offsets,
+            0,
+            false,
+            commandTotalLength,
+            0,
+            options.ignoreIncomplete === true
+        );
+
+        return result.errors;
+    }
+
+    /**
+     * Brigadier 식 백트래킹 파서.
+     *  - 한 토큰에 매칭 가능한 자식 노드가 여러 개일 때 모두 시도한다 (`first match break` 금지).
+     *  - 첫 번째로 "하드 에러 없이 끝까지" 도달하는 경로가 있으면 그 경로를 반환.
+     *  - 모두 실패하면 가장 멀리까지 간 경로의 에러를 채택.
+     */
+    private tryParseCommand(
+        nodes: CommandNode[],
+        tokens: string[],
+        offsets: number[],
+        tokenIdx: number,
+        hasExecutable: boolean,
+        commandTotalLength: number,
+        depth: number,
+        ignoreIncomplete: boolean
+    ): {
+        success: boolean;
+        errors: CommandValidationError[];
+        consumedIdx: number;
+        failureKind?: "incomplete" | "unexpected";
+    } {
+        if (depth > 256) {
+            return { success: false, errors: [], consumedIdx: tokenIdx };
+        }
+
+        if (tokenIdx >= tokens.length) {
+            const exec =
+                hasExecutable || nodes.some(n => n && n.executable === true);
+            if (exec) {
+                return { success: true, errors: [], consumedIdx: tokenIdx };
+            }
+            // execute 의 subcommand 같은 호출자는 "끝까지 갔지만 executable 아님" 케이스를
+            // 정상으로 취급 (run/단문 body 가 따라붙으니까).
+            if (ignoreIncomplete) {
+                return {
+                    success: true,
+                    errors: [],
+                    consumedIdx: tokenIdx,
+                };
+            }
+            const expected = this.getExpectedTokens(nodes);
+            const msg =
+                expected.length > 0
+                    ? vscode.l10n.t(
+                          "Incomplete command. Expected: {0}{1}",
+                          expected.slice(0, 5).join(", "),
+                          expected.length > 5 ? "..." : ""
+                      )
+                    : vscode.l10n.t("Incomplete command");
+            return {
+                success: false,
+                errors: [
+                    {
+                        start: 0,
+                        length: commandTotalLength,
+                        message: msg,
+                        severity: "error",
+                    },
+                ],
+                consumedIdx: tokenIdx,
+                failureKind: "incomplete",
+            };
+        }
+
+        const token = tokens[tokenIdx];
+        const offset = offsets[tokenIdx];
+
+        type Candidate = {
+            target: CommandNode;
+            skip: number;
+            tentativeErrors: CommandValidationError[];
+            isLiteral: boolean;
+            executableHere: boolean;
+            resetToRoot: boolean;
+        };
+
+        const candidates: Candidate[] = [];
+
+        // 리터럴 매칭 — 같은 키워드가 여러 부모에 동시에 있을 수도 있으니 다 수집
+        for (const n of nodes) {
+            if (!n.children) continue;
+            const orig = n.children[token];
+            if (orig && orig.type === "literal") {
+                let target: CommandNode = orig;
+                if (orig.redirect) {
+                    const r = this.resolveRedirect(orig.redirect);
+                    if (r) target = r;
+                }
+                candidates.push({
+                    target,
+                    skip: 0,
+                    tentativeErrors: [],
+                    isLiteral: true,
+                    executableHere: orig.executable === true,
+                    resetToRoot: token === "run",
                 });
             }
         }
 
-        return errors;
+        // 인자 후보 — 모든 argument 자식을 다 시도해 본다
+        for (const n of nodes) {
+            if (!n.children) continue;
+            for (const [, child] of Object.entries(n.children)) {
+                if (child.type !== "argument") continue;
+
+                const argErr = this.validateArgument(token, child, offset);
+                const tentativeErrors: CommandValidationError[] = [];
+                if (argErr) tentativeErrors.push(argErr);
+
+                if (child.parser === "minecraft:particle") {
+                    tentativeErrors.push(
+                        ...this.validateParticleArg(token, offset)
+                    );
+                }
+
+                let target: CommandNode = child;
+                if (child.redirect) {
+                    const r = this.resolveRedirect(child.redirect);
+                    if (r) target = r;
+                }
+
+                const count = SpyglassManager.getParserTokenCount(
+                    child.parser || ""
+                );
+                let skip = count - 1;
+                if (
+                    child.parser === "minecraft:message" ||
+                    (child.parser === "brigadier:string" &&
+                        child.properties?.type === "greedy")
+                ) {
+                    skip = Math.max(skip, tokens.length - tokenIdx - 1);
+                }
+
+                candidates.push({
+                    target,
+                    skip,
+                    tentativeErrors,
+                    isLiteral: false,
+                    executableHere: child.executable === true,
+                    resetToRoot: false,
+                });
+            }
+        }
+
+        if (candidates.length === 0) {
+            const expected = this.getExpectedTokens(nodes);
+            const msg =
+                expected.length > 0
+                    ? vscode.l10n.t(
+                          "Unexpected argument: {0}. Expected: {1}{2}",
+                          token,
+                          expected.slice(0, 5).join(", "),
+                          expected.length > 5 ? "..." : ""
+                      )
+                    : vscode.l10n.t(
+                          "Unexpected argument: {0}. Command should end here.",
+                          token
+                      );
+            return {
+                success: false,
+                errors: [
+                    {
+                        start: offset,
+                        length: token.length,
+                        message: msg,
+                        severity: "error",
+                    },
+                ],
+                consumedIdx: tokenIdx,
+                failureKind: "unexpected",
+            };
+        }
+
+        let best: {
+            errors: CommandValidationError[];
+            consumedIdx: number;
+            failureKind?: "incomplete" | "unexpected";
+        } | null = null;
+
+        for (const c of candidates) {
+            const nextTokenIdx = tokenIdx + 1 + c.skip;
+            const nextNodes = c.resetToRoot
+                ? [this.commandTree!]
+                : [c.target];
+            const nextHasExec = c.resetToRoot
+                ? false
+                : hasExecutable ||
+                  c.executableHere ||
+                  c.target.executable === true;
+
+            const sub = this.tryParseCommand(
+                nextNodes,
+                tokens,
+                offsets,
+                nextTokenIdx,
+                nextHasExec,
+                commandTotalLength,
+                depth + 1,
+                ignoreIncomplete
+            );
+
+            const allErrors = [...c.tentativeErrors, ...sub.errors];
+            const hasHardError = allErrors.some(e => e.severity === "error");
+
+            if (sub.success && !hasHardError) {
+                // 깔끔 성공: 즉시 반환 (경고만 있을 수 있음)
+                return {
+                    success: true,
+                    errors: allErrors,
+                    consumedIdx: sub.consumedIdx,
+                };
+            }
+
+            // best 갱신: 더 멀리 간 경로 우선, 동률이면 에러 수 적은 쪽
+            if (
+                !best ||
+                sub.consumedIdx > best.consumedIdx ||
+                (sub.consumedIdx === best.consumedIdx &&
+                    allErrors.length < best.errors.length)
+            ) {
+                best = {
+                    errors: allErrors,
+                    consumedIdx: sub.consumedIdx,
+                    failureKind: sub.failureKind,
+                };
+            }
+        }
+
+        return { success: false, ...best! };
     }
 
     private validateParticleArg(
@@ -646,7 +716,11 @@ export class SpyglassManager {
             const nameRegex = isScoreHolder
                 ? /^#?[a-zA-Z0-9_.+\-]+$/
                 : /^[a-zA-Z0-9_]+$/;
+            // UUID — 엔티티/플레이어 자리에 허용 (game_profile 포함). 형식: 8-4-4-4-12 hex.
+            const uuidRegex =
+                /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
             const isWildcard = isScoreHolder && workToken === "*";
+            const isUuid = !isScoreHolder && uuidRegex.test(workToken);
             if (workToken.startsWith("@")) {
                 if (!/^@[aeprsn](\[.*\])?$/.test(workToken)) {
                     return {
@@ -659,7 +733,7 @@ export class SpyglassManager {
                         severity: "warning",
                     };
                 }
-            } else if (!isWildcard && !nameRegex.test(workToken)) {
+            } else if (!isWildcard && !isUuid && !nameRegex.test(workToken)) {
                 return {
                     start: offset,
                     length: token.length,
@@ -1408,7 +1482,7 @@ export class SpyglassManager {
             } else if (c === "}" || c === "]") {
                 braceDepth--;
                 current += c;
-            } else if (c === " " && braceDepth === 0) {
+            } else if (/\s/.test(c) && braceDepth === 0) {
                 if (current.length > 0) {
                     tokens.push(current);
                     current = "";
@@ -1456,56 +1530,107 @@ export class SpyglassManager {
 
             let foundLiteral = false;
 
+            // 리터럴 매칭: currentNodes 의 모든 자식 중 일치하는 것 전부 수집.
+            // (다중 후보 보존 → 다음 토큰에서 다른 가지를 탐색할 수 있게)
             for (const node of currentNodes) {
                 if (!node.children) continue;
-                if (
-                    node.children[tokenValue] &&
-                    node.children[tokenValue].type === "literal"
-                ) {
-                    matchedNode = node.children[tokenValue];
-                    matchedParser = matchedNode.parser;
-                    if (matchedNode.redirect) {
-                        const r = this.resolveRedirect(matchedNode.redirect);
-                        if (r) matchedNode = r;
+                const child = node.children[tokenValue];
+                if (child && child.type === "literal") {
+                    let target: CommandNode = child;
+                    if (child.redirect) {
+                        const r = this.resolveRedirect(child.redirect);
+                        if (r) target = r;
                     }
-                    nextNodes.push(matchedNode);
-
-                    if (isFirstLiteral || afterRun) {
-                        matchType = "keyword";
-                        isFirstLiteral = false;
-                        afterRun = false;
-                    } else {
-                        matchType = "function";
+                    nextNodes.push(target);
+                    if (!foundLiteral) {
+                        matchedNode = child;
+                        matchedParser = child.parser;
+                        if (isFirstLiteral || afterRun) {
+                            matchType = "keyword";
+                            isFirstLiteral = false;
+                            afterRun = false;
+                        } else {
+                            matchType = "function";
+                        }
+                        if (tokenValue === "run") afterRun = true;
+                        foundLiteral = true;
                     }
-
-                    if (tokenValue === "run") {
-                        afterRun = true;
-                    }
-
-                    foundLiteral = true;
-                    break;
                 }
             }
 
             if (!foundLiteral) {
+                // 인자 후보 전수 시도.
+                // 1차 필터: validateArgument 결과로 clean / warning-only / 그 외 분류
+                // 2차 정렬: 토큰 모양 vs parser 친화도 점수가 높은 쪽 우선
+                //   - 토큰이 숫자/`~`/`^` 시작이면 좌표·수치 parser 우대
+                //   - 그 외 알파벳 토큰이면 entity/score_holder/game_profile 우대
+                const clean: CommandNode[] = [];
+                const warningOnly: CommandNode[] = [];
+                const all: CommandNode[] = [];
                 for (const node of currentNodes) {
                     if (!node.children) continue;
-                    for (const [key, child] of Object.entries(node.children)) {
-                        if (child.type === "argument") {
-                            matchedNode = child;
-                            matchedParser = child.parser;
-                            if (matchedNode.redirect) {
-                                const r = this.resolveRedirect(
-                                    matchedNode.redirect
-                                );
-                                if (r) matchedNode = r;
-                            }
-                            nextNodes.push(matchedNode);
-                            matchType = this.mapParserToTokenType(child.parser);
-                            break;
+                    for (const [, child] of Object.entries(node.children)) {
+                        if (child.type !== "argument") continue;
+                        let target: CommandNode = child;
+                        if (child.redirect) {
+                            const r = this.resolveRedirect(child.redirect);
+                            if (r) target = r;
                         }
+                        const err = this.validateArgument(
+                            tokenValue,
+                            child,
+                            token.start
+                        );
+                        nextNodes.push(target);
+                        all.push(child);
+                        if (!err) clean.push(child);
+                        else if (err.severity !== "error")
+                            warningOnly.push(child);
                     }
-                    if (nextNodes.length > 0) break;
+                }
+                const tokenLooksNumeric =
+                    /^[~^]/.test(tokenValue) ||
+                    /^-?\d/.test(tokenValue);
+                const scoreCandidate = (c: CommandNode) => {
+                    const p = c.parser || "";
+                    if (tokenLooksNumeric) {
+                        if (
+                            p === "minecraft:vec3" ||
+                            p === "minecraft:vec2" ||
+                            p === "minecraft:block_pos" ||
+                            p === "minecraft:column_pos" ||
+                            p === "minecraft:rotation" ||
+                            p === "brigadier:integer" ||
+                            p === "brigadier:float" ||
+                            p === "brigadier:double" ||
+                            p === "brigadier:long" ||
+                            p === "minecraft:int_range" ||
+                            p === "minecraft:float_range" ||
+                            p === "minecraft:time"
+                        )
+                            return 0;
+                        return 1;
+                    }
+                    if (
+                        p.includes("entity") ||
+                        p === "minecraft:score_holder" ||
+                        p === "minecraft:game_profile"
+                    )
+                        return 0;
+                    return 1;
+                };
+                const sortBest = (arr: CommandNode[]) =>
+                    [...arr].sort(
+                        (a, b) => scoreCandidate(a) - scoreCandidate(b)
+                    );
+                const pick =
+                    sortBest(clean)[0] ||
+                    sortBest(warningOnly)[0] ||
+                    sortBest(all)[0];
+                if (pick) {
+                    matchedNode = pick;
+                    matchedParser = pick.parser;
+                    matchType = this.mapParserToTokenType(pick.parser);
                 }
             }
 
@@ -2403,7 +2528,7 @@ export class SpyglassManager {
         for (let i = 0; i < text.length; i++) {
             const c = text[i];
 
-            if (startIndex === -1 && c !== " ") {
+            if (startIndex === -1 && !/\s/.test(c)) {
                 startIndex = i;
             }
 
@@ -2418,7 +2543,7 @@ export class SpyglassManager {
             } else if (c === "}" || c === "]") {
                 braceDepth--;
                 current += c;
-            } else if (c === " " && braceDepth === 0) {
+            } else if (/\s/.test(c) && braceDepth === 0) {
                 if (current.length > 0) {
                     tokens.push({
                         value: current,

@@ -29,11 +29,13 @@ export class DiagnosticGenerator {
 
     generate(
         program: AST.Program,
-        parserErrors: ParseError[]
+        parserErrors: ParseError[],
+        documentText: string = ""
     ): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.inLoop = 0;
         this.inFunction = 0;
+        this.documentText = documentText;
 
         for (const error of parserErrors) {
             this.diagnostics.push({
@@ -257,12 +259,22 @@ export class DiagnosticGenerator {
     }
 
     private checkSemicolonInCommand(text: string, baseRange: Range, offset: number): void {
+        // NBT `[I;1,2,3,4]` / `[L;…]` / `[B;…]` 처럼 컴파운드/리스트 안쪽의 `;` 는 정상 문법.
+        // 문자열·중괄호·대괄호 깊이 모두 추적해서 top-level 의 `;` 만 경고.
         let inString = false;
+        let quote = "";
+        let depth = 0;
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
-            if (ch === '\\' && inString) { i++; continue; }
-            if (ch === '"') inString = !inString;
-            else if (ch === ';' && !inString) {
+            if (inString) {
+                if (ch === "\\") { i++; continue; }
+                if (ch === quote) { inString = false; quote = ""; }
+                continue;
+            }
+            if (ch === '"' || ch === "'") { inString = true; quote = ch; continue; }
+            if (ch === "{" || ch === "[") { depth++; continue; }
+            if (ch === "}" || ch === "]") { if (depth > 0) depth--; continue; }
+            if (ch === ";" && depth === 0) {
                 const col = baseRange.start.character + offset + i;
                 this.addDiagnostic(
                     {
@@ -276,25 +288,125 @@ export class DiagnosticGenerator {
         }
     }
 
+    /**
+     * cleaned 문자열 위치 → 원본(token.value) 문자열 위치 매핑 테이블.
+     * cleaned 는 `\$` → `$` 로 1글자 줄어든 상태. map[i] 가 원본 token.value 의 인덱스.
+     */
+    private buildEscapeMap(original: string): number[] {
+        const map: number[] = [];
+        for (let i = 0; i < original.length; i++) {
+            if (
+                original[i] === "\\" &&
+                i + 1 < original.length &&
+                original[i + 1] === "$"
+            ) {
+                map.push(i + 1); // cleaned 의 $ 는 원본의 $ 위치
+                i++; // 다음 $ 는 이미 처리
+                continue;
+            }
+            map.push(i);
+        }
+        return map;
+    }
+
+    /**
+     * 토큰값(이스케이프·라인 연속 정리된 문자열) 인덱스를 문서상 (line, col) 로 변환.
+     * commandRange 와 원본 source 를 기준으로 `\\\n` 라인 연속 등을 건너뛰며 진행.
+     * leadingOffset: `/` 또는 `/$` 같이 token.value 에 포함 안 된 prefix 길이.
+     */
+    private mapTokenOffsetToPosition(
+        node: AST.CommandStatement | AST.MacroCommandStatement,
+        tokenOffset: number,
+        leadingOffset: number,
+        document: string
+    ): { line: number; character: number } {
+        const sourceLines = document.split("\n");
+        let line = node.commandRange.start.line;
+        let col = node.commandRange.start.character + leadingOffset;
+        let remaining = tokenOffset;
+
+        while (remaining > 0 && line <= node.commandRange.end.line) {
+            const lineText = sourceLines[line] ?? "";
+            // `\` + 줄끝(\n) 패턴이면 다음 줄로 이동 (토큰에는 포함 안 됨).
+            if (col < lineText.length && lineText[col] === "\\" && col + 1 === lineText.length) {
+                line++;
+                col = 0;
+                continue;
+            }
+            // EOL 도달했는데 \-continuation 아니면 멈춤 (방어).
+            if (col >= lineText.length) {
+                if (line < node.commandRange.end.line) {
+                    line++;
+                    col = 0;
+                    continue;
+                }
+                break;
+            }
+            col++;
+            remaining--;
+        }
+        // 라인 끝에 닿았을 때 `\` 연속이면 추가로 다음 줄로.
+        const lineTextNow = sourceLines[line] ?? "";
+        if (
+            col < lineTextNow.length &&
+            lineTextNow[col] === "\\" &&
+            col + 1 === lineTextNow.length &&
+            line < node.commandRange.end.line
+        ) {
+            line++;
+            col = 0;
+        }
+        return { line, character: col };
+    }
+
+    private documentText: string = "";
+    setDocumentText(text: string) {
+        this.documentText = text;
+    }
+
     private visitCommandStatement(node: AST.CommandStatement): void {
         this.checkSemicolonInCommand(node.command, node.commandRange, 1);
 
         const spyglass = getSpyglassManager();
         if (spyglass.isInitialized()) {
-            const errors = spyglass.validateCommand(node.command);
+            // comet 이스케이프: `\$` → `$` (literal `$`). spyglass 가 `\` 를 erroring 하지 않도록.
+            // 다른 `\X` 는 NBT/문자열 안에서 의미가 있을 수 있으므로 그대로 둠.
+            const cleaned = node.command.replace(/\\\$/g, "$");
+            const map = this.buildEscapeMap(node.command);
+            const errors = spyglass.validateCommand(cleaned);
 
             for (const error of errors) {
-                const startLine = node.commandRange.start.line;
-                // commandRange는 `/`부터 시작하지만 node.command/error.start는 `/`를 제외함 → +1 보정
-                const startCol =
-                    node.commandRange.start.character + 1 + error.start;
+                // cleaned 좌표 → token.value 좌표
+                const tokenStart =
+                    error.start < map.length
+                        ? map[error.start]
+                        : node.command.length;
+                const endIdx = error.start + error.length - 1;
+                const tokenEndInclusive =
+                    endIdx < map.length
+                        ? map[endIdx]
+                        : node.command.length - 1;
+
+                // token.value 좌표 → 문서 (line, col)
+                const startPos = this.mapTokenOffsetToPosition(
+                    node,
+                    tokenStart,
+                    1,
+                    this.documentText
+                );
+                const endPos = this.mapTokenOffsetToPosition(
+                    node,
+                    tokenEndInclusive + 1,
+                    1,
+                    this.documentText
+                );
 
                 this.diagnostics.push({
                     range: new vscode.Range(
-                        startLine,
-                        startCol,
-                        startLine,
-                        startCol + error.length
+                        startPos.line,
+                        startPos.character,
+                        endPos.line,
+                        endPos.character
                     ),
                     message: error.message,
                     severity:

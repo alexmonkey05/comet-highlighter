@@ -21,28 +21,34 @@ export class HoverProvider implements vscode.HoverProvider {
         const parseResult = this.documentManager.parse(document);
         const pos = vscodePositionToPosition(position);
 
-        const identifier = this.findIdentifierAtPosition(
-            parseResult.program,
-            pos
-        );
-        if (!identifier) {
+        const node = this.findNodeAtPosition(parseResult.program, pos);
+        if (!node) {
             return null;
         }
 
-        if (identifier.name === "__namespace__") {
+        let name = "";
+        if (node.type === "Identifier") {
+            name = node.name;
+        } else if (node.type === "StringLiteral") {
+            name = node.value;
+        } else {
+            return null;
+        }
+
+        if (name === "__namespace__") {
             const md = new vscode.MarkdownString();
             md.appendCodeblock("__namespace__", "comet");
             md.appendMarkdown("\n\n" + vscode.l10n.t("Resolves to the module path. In the main file, equals the configured namespace; in imported modules, becomes `namespace:filename/`."));
             return new vscode.Hover(md);
         }
-        if (identifier.name === "__main__") {
+        if (name === "__main__") {
             const md = new vscode.MarkdownString();
             md.appendCodeblock("__main__", "comet");
             md.appendMarkdown("\n\n" + vscode.l10n.t("Always resolves to the configured root namespace, regardless of which file it appears in."));
             return new vscode.Hover(md);
         }
 
-        const symbol = parseResult.scope.resolve(identifier.name);
+        const symbol = parseResult.scope.resolve(name);
         if (!symbol) {
             return null;
         }
@@ -68,7 +74,7 @@ export class HoverProvider implements vscode.HoverProvider {
                     : "";
                 markdown.appendCodeblock(signature + returnType, "comet");
                 if (symbol.documentation) {
-                    markdown.appendMarkdown("\n\n" + symbol.documentation);
+                    markdown.appendMarkdown("\n\n" + vscode.l10n.t(symbol.documentation));
                 }
                 break;
 
@@ -107,6 +113,26 @@ export class HoverProvider implements vscode.HoverProvider {
                 );
                 break;
 
+            case "score":
+                markdown.appendCodeblock(
+                    `score ${symbol.name} (${symbol.scope})`,
+                    "comet"
+                );
+                markdown.appendMarkdown(
+                    `\n\n${vscode.l10n.t("Scoreboard objective: {0}", symbol.scope || "")}`
+                );
+                break;
+
+            case "tag":
+                markdown.appendCodeblock(`tag ${symbol.name}`, "comet");
+                markdown.appendMarkdown(`\n\n${vscode.l10n.t("Entity tag")}`);
+                break;
+
+            case "storage":
+                markdown.appendCodeblock(`storage ${symbol.name}`, "comet");
+                markdown.appendMarkdown(`\n\n${vscode.l10n.t("Command storage")}`);
+                break;
+
             default:
                 return null;
         }
@@ -114,16 +140,16 @@ export class HoverProvider implements vscode.HoverProvider {
         return new vscode.Hover(markdown);
     }
 
-    private findIdentifierAtPosition(
+    private findNodeAtPosition(
         program: AST.Program,
         pos: Position
-    ): AST.Identifier | null {
-        let found: AST.Identifier | null = null;
+    ): AST.Identifier | AST.StringLiteral | null {
+        let found: any = null;
 
         const visitNode = (node: any): void => {
             if (!node || typeof node !== "object") return;
 
-            if (node.type === "Identifier" && node.range) {
+            if ((node.type === "Identifier" || node.type === "StringLiteral") && node.range) {
                 if (this.rangeContainsPosition(node.range, pos)) {
                     found = node;
                 }
