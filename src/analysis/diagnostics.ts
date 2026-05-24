@@ -257,12 +257,22 @@ export class DiagnosticGenerator {
     }
 
     private checkSemicolonInCommand(text: string, baseRange: Range, offset: number): void {
+        // NBT `[I;1,2,3,4]` / `[L;…]` / `[B;…]` 처럼 컴파운드/리스트 안쪽의 `;` 는 정상 문법.
+        // 문자열·중괄호·대괄호 깊이 모두 추적해서 top-level 의 `;` 만 경고.
         let inString = false;
+        let quote = "";
+        let depth = 0;
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
-            if (ch === '\\' && inString) { i++; continue; }
-            if (ch === '"') inString = !inString;
-            else if (ch === ';' && !inString) {
+            if (inString) {
+                if (ch === "\\") { i++; continue; }
+                if (ch === quote) { inString = false; quote = ""; }
+                continue;
+            }
+            if (ch === '"' || ch === "'") { inString = true; quote = ch; continue; }
+            if (ch === "{" || ch === "[") { depth++; continue; }
+            if (ch === "}" || ch === "]") { if (depth > 0) depth--; continue; }
+            if (ch === ";" && depth === 0) {
                 const col = baseRange.start.character + offset + i;
                 this.addDiagnostic(
                     {
@@ -281,7 +291,10 @@ export class DiagnosticGenerator {
 
         const spyglass = getSpyglassManager();
         if (spyglass.isInitialized()) {
-            const errors = spyglass.validateCommand(node.command);
+            // comet 이스케이프: `\$` → `$` (literal `$`). spyglass 가 `\` 를 erroring 하지 않도록.
+            // 다른 `\X` 는 NBT/문자열 안에서 의미가 있을 수 있으므로 그대로 둠.
+            const cleaned = node.command.replace(/\\\$/g, "$");
+            const errors = spyglass.validateCommand(cleaned);
 
             for (const error of errors) {
                 const startLine = node.commandRange.start.line;

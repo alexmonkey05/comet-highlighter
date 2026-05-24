@@ -1,3 +1,188 @@
+# ============================================================
+# 이번 수정사항 회귀 테스트 — 모든 항목이 "에러 없음" 이어야 정상
+# (단, [ERROR] 로 표시된 줄은 의도된 에러)
+# ============================================================
+
+
+# ------------------------------------------------------------
+# #1. UUID 가 엔티티 자리에 들어가도 인식
+# ------------------------------------------------------------
+/tp 11111111-2222-3333-4444-555555555555 0 64 0
+/data get entity 12345678-90ab-cdef-1234-567890abcdef
+/tp aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee @s
+
+
+# ------------------------------------------------------------
+# #2. rotate 커맨드 인식 (옛 캐시 무효화 후 정상)
+# ------------------------------------------------------------
+/rotate @s 90 0
+/rotate @s ~ ~
+/rotate @s facing 0 64 0
+/rotate @s facing entity @p eyes
+
+
+# ------------------------------------------------------------
+# #3. NBT 정수배열의 `;` 가 경고를 안 띄움
+# ------------------------------------------------------------
+/data modify entity @s UUID set value [I;1,2,3,4]
+/summon armor_stand ~ ~ ~ {UUID:[I;-1234567890,2147483647,-2147483648,0]}
+/data merge block ~ ~ ~ {Items:[{Slot:0b,id:"minecraft:stone",Count:1b}]}
+
+
+# ------------------------------------------------------------
+# #4. execute 단문 (중괄호 없는 폼) 지원
+# ------------------------------------------------------------
+execute(as @a) /say single-statement form
+execute(if score @s foo matches 1) /tellraw @s {"text":"ok"}
+execute(as @a at @s) /particle minecraft:flame ~ ~1 ~
+
+# 블록 폼도 여전히 동작
+execute(as @a) {
+    /say block form
+    /tellraw @s {"text":"still works"}
+}
+
+
+# ------------------------------------------------------------
+# #5. `tp @s ~ ~ ~` 의 좌표가 에러 안 남 (백트래킹 validator)
+# ------------------------------------------------------------
+/tp @s ~ ~ ~
+/tp @s ~1 ~2 ~3
+/tp @s ^ ^ ^1
+/tp @s 10 64 10
+/tp @s 10 64 10 facing 0 64 0
+/teleport @a ~ ~ ~
+
+
+# ------------------------------------------------------------
+# #6. 배열/괄호/조건 내부에서 줄바꿈 허용
+# ------------------------------------------------------------
+var arr_multi = [
+    1,
+    2,
+    3,
+    4
+]
+
+var nested = [
+    [1, 2],
+    [3, 4]
+]
+
+def add(
+    var a,
+    var b
+) {
+    return a + b
+}
+
+var sum = add(
+    100,
+    200
+)
+
+if (
+    sum == 300
+) {
+    /say multi-line condition works
+}
+
+
+# ------------------------------------------------------------
+# #7. comet 의 `\$` 이스케이프가 validator 를 안 깨먹음
+# ------------------------------------------------------------
+/say price is \$100
+/tellraw @s {"text":"cost \$50"}
+
+# 매크로 라인에서는 \$ 가 그대로 보존되어 매크로 확장이 되면 안 됨
+/$say literal \$(not_a_macro) and $(real_macro)
+
+
+# ------------------------------------------------------------
+# #8. `\` 줄 이어쓰기
+# ------------------------------------------------------------
+/say this is a very long \
+message split across \
+multiple lines
+
+/tellraw @s {"text":"line1 \
+continued"}
+
+
+# ------------------------------------------------------------
+# #9. attribute armor / max_health / scale 인식
+# ------------------------------------------------------------
+/attribute @s minecraft:armor get
+/attribute @s minecraft:max_health get
+/attribute @s minecraft:scale get
+/attribute @s minecraft:armor base set 10.0
+/attribute @s minecraft:max_health modifier add custom:big_health 5.0 add_value
+
+# 짧은 폼 (minecraft: 생략)
+/attribute @s armor get
+/attribute @s scale base set 1.5
+
+
+# ------------------------------------------------------------
+# #10. dialog 명령어 인식
+# ------------------------------------------------------------
+/dialog show @s minecraft:server_links
+/dialog clear @a
+
+
+# ------------------------------------------------------------
+# #11. clone 옵션 strict 인식
+#  주의: spyglass 트리상 `strict` 는 destination 직후의 모드 선택지(replace/masked/filtered) 와
+#  같은 레벨의 형제. 그리고 `strict` 다음에 또 replace/masked/filtered 가 옴.
+#  → 올바른 순서: `clone … <dst> strict replace force` (strict 가 replace 보다 먼저)
+# ------------------------------------------------------------
+/clone 0 0 0 10 10 10 20 20 20
+/clone 0 0 0 10 10 10 20 20 20 replace
+/clone 0 0 0 10 10 10 20 20 20 masked
+/clone 0 0 0 10 10 10 20 20 20 replace force
+/clone 0 0 0 10 10 10 20 20 20 strict
+/clone 0 0 0 10 10 10 20 20 20 strict replace
+/clone 0 0 0 10 10 10 20 20 20 strict replace force
+/clone 0 0 0 10 10 10 20 20 20 strict masked move
+
+
+# ------------------------------------------------------------
+# #12. playsound 옵션 ui 인식
+# ------------------------------------------------------------
+/playsound minecraft:ui.button.click ui @s
+/playsound minecraft:block.note_block.harp master @a
+/playsound minecraft:entity.player.levelup record @s ~ ~ ~ 1.0 1.0 0.0
+
+
+# ------------------------------------------------------------
+# 추가 #13. execute (...) 만 쓴 단독 사용시 incomplete 안 뜸
+#  (subcommand body 가 따라붙는 컨텍스트라 ignoreIncomplete 처리)
+# ------------------------------------------------------------
+execute(as @a) {
+    /say body
+}
+execute(as @a at @s) /say ok
+execute(if score @s foo matches 1) {
+    /say conditional
+}
+
+
+# ------------------------------------------------------------
+# 의도된 에러들 — 아래 줄들은 빨간 줄이 떠야 정상
+# ------------------------------------------------------------
+# [ERROR] 알 수 없는 root 커맨드
+/totallyfakecommand foo bar
+
+# [ERROR] execute 에 잘못된 서브커맨드
+execute(zzz @a) /say bad
+
+# [ERROR] 빈 명령어 본문은 OK (단순 슬래시 한 글자만)
+# /
+
+
+# ------------------------------------------------------------
+# 회귀 — 기존 기능 깨지지 않았는지
+# ------------------------------------------------------------
 def change_text_to_translate(){
     /data modify storage asdf: text set from entity @s text
     execute(if data entity @s text.extra){
