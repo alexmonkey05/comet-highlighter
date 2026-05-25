@@ -167,7 +167,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a1" }, { name: "...args" }],
         returnType: "void",
-        documentation: "a1 a2 ...의 형태로 채팅창에 출력됩니다.",
+        documentation: "Print values to the console",
     },
     {
         name: "random",
@@ -178,7 +178,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [],
         returnType: "double",
-        documentation: "0~1 사이의 랜덤한 실수를 반환합니다.",
+        documentation: "Generate a random double value",
     },
     {
         name: "type",
@@ -189,7 +189,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "string",
-        documentation: "a의 자료형을 문자열로 반환합니다.",
+        documentation: "Get the type of a value",
     },
     {
         name: "round",
@@ -200,7 +200,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a", type: "float|double" }],
         returnType: "int",
-        documentation: "float 또는 double 자료형을 반올림하여 int로 반환합니다.",
+        documentation: "Round a float or double to the nearest integer",
     },
     {
         name: "get_score",
@@ -214,7 +214,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "objective", type: "string" },
         ],
         returnType: "int",
-        documentation: "player의 objective 점수를 가져옵니다.",
+        documentation: "Get a scoreboard score",
     },
     {
         name: "set_score",
@@ -229,7 +229,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "var" },
         ],
         returnType: "any",
-        documentation: "player의 objective에 var의 값을 스코어로 넣습니다. var를 반환합니다.",
+        documentation: "Set a scoreboard score",
     },
     {
         name: "get_data",
@@ -244,7 +244,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "dir", type: "string" },
         ],
         returnType: "nbt",
-        documentation: "NBT 데이터를 가져옵니다. from은 entity, block, storage 중 하나여야 합니다.",
+        documentation: "Get NBT data",
     },
     {
         name: "set_data",
@@ -260,7 +260,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "var" },
         ],
         returnType: "void",
-        documentation: "NBT 데이터를 설정합니다. from은 entity, block, storage 중 하나여야 합니다.",
+        documentation: "Set NBT data",
     },
     {
         name: "append",
@@ -271,7 +271,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "arr", type: "any[]" }, { name: "element" }],
         returnType: "void",
-        documentation: "배열(arr)에 원소(element)를 추가합니다.",
+        documentation: "Append a value to an array",
     },
     {
         name: "del",
@@ -282,7 +282,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "var" }],
         returnType: "void",
-        documentation: "저장소에서 var를 지웁니다.",
+        documentation: "Delete a value",
     },
     {
         name: "len",
@@ -293,7 +293,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "var", type: "array|string" }],
         returnType: "int",
-        documentation: "배열 또는 문자열의 길이를 반환합니다.",
+        documentation: "Get the length of an array or string",
     },
     {
         name: "is_module",
@@ -304,7 +304,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [],
         returnType: "bool",
-        documentation: "해당 파일이 모듈로서 불러와진 것인지 판단해줍니다.",
+        documentation: "Check if the current file is being imported as a module",
     },
     {
         name: "divide",
@@ -318,7 +318,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "var2", type: "number" },
         ],
         returnType: "float",
-        documentation: "var / var2를 소수점 아래 5자리까지 계산합니다. 반환 타입은 float입니다.",
+        documentation: "Divide two numbers and return a float",
     },
     {
         name: "multiply",
@@ -332,7 +332,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             { name: "var2", type: "number" },
         ],
         returnType: "float",
-        documentation: "var * var2를 소수점 아래 5자리까지 계산합니다. 반환 타입은 float입니다.",
+        documentation: "Multiply two numbers and return a float",
     },
     {
         name: "int",
@@ -343,7 +343,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "int",
-        documentation: "a를 int 자료형으로 변환해줍니다. float/double의 경우 round(a)와 같습니다.",
+        documentation: "Convert a value to an integer",
     },
     {
         name: "float",
@@ -354,7 +354,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "float",
-        documentation: "a를 float로 변환해줍니다.",
+        documentation: "Convert a value to a float",
     },
     {
         name: "double",
@@ -365,7 +365,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "double",
-        documentation: "a를 double로 변환해줍니다.",
+        documentation: "Convert a value to a double",
     },
     {
         name: "bool",
@@ -376,7 +376,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "bool",
-        documentation: "a를 bool로 변환해줍니다.",
+        documentation: "Convert a value to a boolean",
     },
     {
         name: "string",
@@ -387,7 +387,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [{ name: "a" }],
         returnType: "string",
-        documentation: "a를 string으로 변환해줍니다.",
+        documentation: "Convert a value to a string",
     },
 ];
 
