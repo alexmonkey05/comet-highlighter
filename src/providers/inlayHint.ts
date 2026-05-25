@@ -45,7 +45,7 @@ export class InlayHintProvider implements vscode.InlayHintsProvider {
                     const symbol = parseResult.scope.resolveLocal(node.name.name);
                     const type = symbol?.returnType || this.typeInference.inferReturnType(node, parseResult.scope);
                     
-                    if (type && type !== "any" && type !== "void") {
+                    if (type && type !== "any") {
                         const bodyStart = node.body.range.start;
                         const finalHintPos = new vscode.Position(
                             bodyStart.line,

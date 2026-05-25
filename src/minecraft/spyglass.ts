@@ -750,7 +750,8 @@ export class SpyglassManager {
         if (registryKey && this.registries[registryKey]) {
             const entries = this.registries[registryKey];
             const normalizedToken = token.replace(/^#/, "");
-            const fullId = normalizedToken.includes(":")
+            const hasNamespace = normalizedToken.includes(":");
+            const fullId = hasNamespace
                 ? normalizedToken
                 : `minecraft:${normalizedToken}`;
 
@@ -764,6 +765,9 @@ export class SpyglassManager {
                 !entries.includes(baseId) &&
                 !entries.includes(baseId.replace("minecraft:", ""))
             ) {
+                if (hasNamespace && !fullId.startsWith("minecraft:")) {
+                    return null;
+                }
                 return {
                     start: offset,
                     length: token.length,
