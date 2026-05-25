@@ -372,6 +372,12 @@ export class ScopeAnalyzer {
                         // 함수 내부 스코프를 임시로 생성하여 매개변수와 지역 변수 파악
                         const tempScope = new Scope(stmt.body.range, this.globalScope);
                         
+                        // 임시 스코프가 globalScope.children에 추가되는 것을 방지
+                        const index = this.globalScope.children.indexOf(tempScope);
+                        if (index > -1) {
+                            this.globalScope.children.splice(index, 1);
+                        }
+                        
                         for (const p of stmt.params) {
                             tempScope.define({
                                 name: p.name.name,

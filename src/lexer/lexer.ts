@@ -331,6 +331,8 @@ export class Lexer {
                 this.line++;
                 this.column = 0;
                 this.lineStart = this.current;
+
+                this.skipLinesInsideContinuation();
                 continue;
             }
             if (c === "\r" && this.peekNext() === "\n") break;
@@ -347,6 +349,50 @@ export class Lexer {
             value,
             this.makeRange(startLine, startColumn)
         );
+    }
+
+    private skipLinesInsideContinuation(): void {
+        while (!this.isAtEnd()) {
+            let i = this.current;
+            while (
+                i < this.source.length &&
+                (this.source[i] === " " || this.source[i] === "\t")
+            ) {
+                i++;
+            }
+
+            if (i >= this.source.length) break;
+
+            const ch = this.source[i];
+            const nextCh = i + 1 < this.source.length ? this.source[i + 1] : "\0";
+
+            if (ch === "\n" || ch === "\r") {
+                this.consumeUntilNewlineAndAdvance();
+                continue;
+            }
+
+            if (ch === "#" || (ch === "/" && nextCh === "#")) {
+                this.consumeUntilNewlineAndAdvance();
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    private consumeUntilNewlineAndAdvance(): void {
+        while (!this.isAtEnd() && this.peek() !== "\n" && this.peek() !== "\r") {
+            this.advance();
+        }
+        if (this.peek() === "\r" && this.peekNext() === "\n") {
+            this.advance();
+        }
+        if (this.peek() === "\n" || this.peek() === "\r") {
+            this.advance();
+            this.line++;
+            this.column = 0;
+            this.lineStart = this.current;
+        }
     }
 
     private scanComment(): void {
