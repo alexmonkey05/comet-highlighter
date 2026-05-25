@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
 import * as AST from "../parser/ast";
 import { Scope, ScopeAnalyzer } from "./scope";
 import { ParseError } from "../parser/parser";
@@ -22,6 +24,7 @@ export class DiagnosticGenerator {
     private currentScope: Scope | null = null;
     private inLoop = 0;
     private inFunction = 0;
+    private currentUri: vscode.Uri | null = null;
 
     constructor() {
         this.scopeAnalyzer = new ScopeAnalyzer();
@@ -30,12 +33,14 @@ export class DiagnosticGenerator {
     generate(
         program: AST.Program,
         parserErrors: ParseError[],
-        documentText: string = ""
+        documentText: string = "",
+        documentUri?: vscode.Uri
     ): vscode.Diagnostic[] {
         this.diagnostics = [];
         this.inLoop = 0;
         this.inFunction = 0;
         this.documentText = documentText;
+        this.currentUri = documentUri || null;
 
         for (const error of parserErrors) {
             this.diagnostics.push({
@@ -218,7 +223,20 @@ export class DiagnosticGenerator {
         }
     }
 
-    private visitImportStatement(node: AST.ImportStatement): void {}
+    private visitImportStatement(node: AST.ImportStatement): void {
+        if (!this.currentUri || !node.source.name) return;
+
+        const dir = path.dirname(this.currentUri.fsPath);
+        const importPath = path.join(dir, `${node.source.name}.planet`);
+
+        if (!fs.existsSync(importPath)) {
+            this.addDiagnostic(
+                node.source.range,
+                vscode.l10n.t("Module '{0}' not found", node.source.name),
+                vscode.DiagnosticSeverity.Warning
+            );
+        }
+    }
 
     private visitExecuteStatement(node: AST.ExecuteStatement): void {
         const spyglass = getSpyglassManager();
