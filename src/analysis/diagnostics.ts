@@ -141,39 +141,16 @@ export class DiagnosticGenerator {
 
     private visitIfStatement(node: AST.IfStatement): void {
         this.visitExpression(node.condition);
-
-        if (node.consequent.type !== "BlockStatement") {
-            this.addDiagnostic(
-                node.consequent.range,
-                vscode.l10n.t("If statement body should be enclosed in braces"),
-                vscode.DiagnosticSeverity.Warning
-            );
-        }
         this.visitStatement(node.consequent);
 
         if (node.elseIfClauses.length > 0) {
             for (const elseIf of node.elseIfClauses) {
-                if (elseIf.consequent.type !== "BlockStatement") {
-                    this.addDiagnostic(
-                        elseIf.consequent.range,
-                        vscode.l10n.t("Else if statement body should be enclosed in braces"),
-                        vscode.DiagnosticSeverity.Warning
-                    );
-                }
-
                 this.visitExpression(elseIf.condition);
                 this.visitStatement(elseIf.consequent);
             }
         }
 
         if (node.alternate) {
-            if (node.alternate.type !== "BlockStatement") {
-                this.addDiagnostic(
-                    node.alternate.range,
-                    vscode.l10n.t("Else statement body should be enclosed in braces"),
-                    vscode.DiagnosticSeverity.Warning
-                );
-            }
             this.visitStatement(node.alternate);
         }
     }

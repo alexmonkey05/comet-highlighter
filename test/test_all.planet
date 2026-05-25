@@ -37,7 +37,7 @@ def good_name(var x, var y){
 }
 
 # ---------------------------------------------------------------------
-# 4. 조건문 — [WARN] 중괄호 생략
+# 4. 조건문 
 # ---------------------------------------------------------------------
 def if_test(){
     var n = 0
@@ -45,17 +45,17 @@ def if_test(){
         n = n + 1
     }
 
-    if(n == 1)              # [WARN] diagnostic.ifNoBraces
+    if(n == 1)
         n = n + 1
 
     if(n == 2){
         n = n + 1
-    } else                  # [WARN] diagnostic.elseNoBraces
+    } else
         n = n - 1
 
     if(n == 3){
         n = n + 1
-    } else if(n == 0)       # [WARN] diagnostic.elseIfNoBraces
+    } else if(n == 0)
         n = n + 2
 }
 
@@ -131,6 +131,7 @@ def mc_commands(){
     /say hello                          # [정상]
     /gamemode creative @a               # [정상]
     /tp @s 0 64 0                       # [정상]
+    /tp 0-0-0-0-1 ~ ~ ~                 # [정상] UUID 단축 형식
 
     /say a; /say b                      # [WARN] diagnostic.semicolonInCommand
     /gamemode survival @a; /say done    # [WARN] diagnostic.semicolonInCommand

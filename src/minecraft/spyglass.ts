@@ -716,9 +716,9 @@ export class SpyglassManager {
             const nameRegex = isScoreHolder
                 ? /^#?[a-zA-Z0-9_.+\-]+$/
                 : /^[a-zA-Z0-9_]+$/;
-            // UUID — 엔티티/플레이어 자리에 허용 (game_profile 포함). 형식: 8-4-4-4-12 hex.
+            // UUID — 엔티티/플레이어 자리에 허용 (game_profile 포함). 형식: 8-4-4-4-12 hex. (0-0-0-0-1 같은 단축 형식도 허용하도록 완화)
             const uuidRegex =
-                /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+                /^[0-9a-fA-F]{1,8}-[0-9a-fA-F]{1,4}-[0-9a-fA-F]{1,4}-[0-9a-fA-F]{1,4}-[0-9a-fA-F]{1,12}$/;
             const isWildcard = isScoreHolder && workToken === "*";
             const isUuid = !isScoreHolder && uuidRegex.test(workToken);
             if (workToken.startsWith("@")) {
