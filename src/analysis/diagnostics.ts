@@ -116,7 +116,8 @@ export class DiagnosticGenerator {
         if (this.currentScope) {
             const existing = this.currentScope.resolveLocal(
                 node.name.name,
-                node.name.range.start
+                node.name.range.start,
+                "variable"
             );
             if (existing) {
                 this.addDiagnostic(
@@ -138,7 +139,8 @@ export class DiagnosticGenerator {
         if (this.currentScope) {
             const existing = this.currentScope.resolveLocal(
                 node.name.name,
-                node.name.range.start
+                node.name.range.start,
+                "function"
             );
             if (existing) {
                 this.addDiagnostic(
@@ -235,6 +237,24 @@ export class DiagnosticGenerator {
                 vscode.l10n.t("Module '{0}' not found", node.source.name),
                 vscode.DiagnosticSeverity.Warning
             );
+        }
+
+        if (this.currentScope) {
+            const existing = this.currentScope.resolveLocal(
+                node.source.name,
+                node.source.range.start,
+                "import"
+            );
+            if (existing) {
+                this.addDiagnostic(
+                    node.source.range,
+                    vscode.l10n.t(
+                        "Identifier '{0}' is already defined",
+                        node.source.name
+                    ),
+                    vscode.DiagnosticSeverity.Error
+                );
+            }
         }
     }
 

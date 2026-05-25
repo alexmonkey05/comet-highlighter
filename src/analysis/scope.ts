@@ -53,38 +53,75 @@ export class Scope {
         list.push(symbol);
     }
 
-    resolve(name: string, pos?: { line: number; character: number }): Symbol | null {
+    resolve(name: string, pos?: { line: number; character: number }, kind?: SymbolKind): Symbol | null {
         const list = this.symbols.get(name);
         if (list) {
             if (pos) {
                 for (let i = list.length - 1; i >= 0; i--) {
                     const s = list[i];
+                    if (kind && s.kind !== kind) {
+                        // kind가 지정된 경우, 변수/파라미터는 서로 호환되도록 처리
+                        if (kind === "variable" || kind === "parameter") {
+                            if (s.kind !== "variable" && s.kind !== "parameter") continue;
+                        } else {
+                            continue;
+                        }
+                    }
                     if (this.isBefore(s.declarationRange.end, pos)) {
                         return s;
                     }
                 }
             } else {
-                return list[list.length - 1];
+                if (kind) {
+                    for (let i = list.length - 1; i >= 0; i--) {
+                        const s = list[i];
+                        if (kind === "variable" || kind === "parameter") {
+                            if (s.kind === "variable" || s.kind === "parameter") return s;
+                        } else if (s.kind === kind) {
+                            return s;
+                        }
+                    }
+                } else {
+                    return list[list.length - 1];
+                }
             }
         }
         if (this.parent) {
-            return this.parent.resolve(name, pos);
+            return this.parent.resolve(name, pos, kind);
         }
         return null;
     }
 
-    resolveLocal(name: string, pos?: { line: number; character: number }): Symbol | null {
+    resolveLocal(name: string, pos?: { line: number; character: number }, kind?: SymbolKind): Symbol | null {
         const list = this.symbols.get(name);
         if (list) {
             if (pos) {
                 for (let i = list.length - 1; i >= 0; i--) {
                     const s = list[i];
+                    if (kind && s.kind !== kind) {
+                        if (kind === "variable" || kind === "parameter") {
+                            if (s.kind !== "variable" && s.kind !== "parameter") continue;
+                        } else {
+                            continue;
+                        }
+                    }
                     if (this.isBefore(s.declarationRange.end, pos)) {
                         return s;
                     }
                 }
             } else {
-                return list[list.length - 1];
+                if (kind) {
+                    for (let i = list.length - 1; i >= 0; i--) {
+                        const s = list[i];
+                        if (kind === "variable" || kind === "parameter") {
+                            if (s.kind === "variable" || s.kind === "parameter") return s;
+                        } else if (s.kind === kind) {
+                            return s;
+                        }
+                    }
+                } else {
+                    return list[list.length - 1];
+                }
             }
         }
         return null;
