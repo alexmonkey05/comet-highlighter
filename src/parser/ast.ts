@@ -35,6 +35,7 @@ export interface VarDeclaration {
     name: Identifier;
     varType: string | null;
     init: Expression | null;
+    documentation: string | null;
     range: Range;
 }
 

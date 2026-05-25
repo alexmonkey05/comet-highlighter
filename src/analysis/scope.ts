@@ -1,5 +1,6 @@
 import { Range } from "../utils/position";
 import * as AST from "../parser/ast";
+import { TypeInference } from "./type_inference";
 
 export type SymbolKind =
     | "variable"
@@ -92,9 +93,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }, { name: "...args" }],
+        params: [{ name: "a1" }, { name: "...args" }],
         returnType: "void",
-        documentation: "Print values to the console",
+        documentation: "a1 a2 ...의 형태로 채팅창에 출력됩니다.",
     },
     {
         name: "random",
@@ -105,7 +106,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [],
         returnType: "double",
-        documentation: "Generate a random double value",
+        documentation: "0~1 사이의 랜덤한 실수를 반환합니다.",
     },
     {
         name: "type",
@@ -114,9 +115,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "string",
-        documentation: "Get the type of a value",
+        documentation: "a의 자료형을 문자열로 반환합니다.",
     },
     {
         name: "round",
@@ -125,9 +126,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value", type: "float|double" }],
+        params: [{ name: "a", type: "float|double" }],
         returnType: "int",
-        documentation: "Round a float or double to the nearest integer",
+        documentation: "float 또는 double 자료형을 반올림하여 int로 반환합니다.",
     },
     {
         name: "get_score",
@@ -137,11 +138,11 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string|entity" },
+            { name: "player", type: "string|entity" },
             { name: "objective", type: "string" },
         ],
         returnType: "int",
-        documentation: "Get a scoreboard score",
+        documentation: "player의 objective 점수를 가져옵니다.",
     },
     {
         name: "set_score",
@@ -151,12 +152,12 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "target", type: "string|entity" },
+            { name: "player", type: "string|entity" },
             { name: "objective", type: "string" },
-            { name: "value" },
+            { name: "var" },
         ],
         returnType: "any",
-        documentation: "Set a scoreboard score",
+        documentation: "player의 objective에 var의 값을 스코어로 넣습니다. var를 반환합니다.",
     },
     {
         name: "get_data",
@@ -166,12 +167,12 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "type", type: "string" },
-            { name: "target", type: "string|entity" },
-            { name: "path", type: "string" },
+            { name: "from", type: "string" },
+            { name: "name", type: "string|entity" },
+            { name: "dir", type: "string" },
         ],
-        returnType: "any",
-        documentation: "Get NBT data",
+        returnType: "nbt",
+        documentation: "NBT 데이터를 가져옵니다. from은 entity, block, storage 중 하나여야 합니다.",
     },
     {
         name: "set_data",
@@ -181,13 +182,13 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "type", type: "string" },
-            { name: "target", type: "string|entity" },
-            { name: "path", type: "string" },
-            { name: "value" },
+            { name: "from", type: "string" },
+            { name: "name", type: "string|entity" },
+            { name: "dir", type: "string" },
+            { name: "var" },
         ],
         returnType: "void",
-        documentation: "Set NBT data",
+        documentation: "NBT 데이터를 설정합니다. from은 entity, block, storage 중 하나여야 합니다.",
     },
     {
         name: "append",
@@ -196,9 +197,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "array", type: "array" }, { name: "value" }],
+        params: [{ name: "arr", type: "any[]" }, { name: "element" }],
         returnType: "void",
-        documentation: "Append a value to an array",
+        documentation: "배열(arr)에 원소(element)를 추가합니다.",
     },
     {
         name: "del",
@@ -207,9 +208,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "var" }],
         returnType: "void",
-        documentation: "Delete a value",
+        documentation: "저장소에서 var를 지웁니다.",
     },
     {
         name: "len",
@@ -218,9 +219,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value", type: "array|string" }],
+        params: [{ name: "var", type: "array|string" }],
         returnType: "int",
-        documentation: "Get the length of an array or string",
+        documentation: "배열 또는 문자열의 길이를 반환합니다.",
     },
     {
         name: "is_module",
@@ -231,7 +232,7 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
         },
         params: [],
         returnType: "bool",
-        documentation: "Check if the current file is being imported as a module",
+        documentation: "해당 파일이 모듈로서 불러와진 것인지 판단해줍니다.",
     },
     {
         name: "divide",
@@ -241,11 +242,11 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "a", type: "number" },
-            { name: "b", type: "number" },
+            { name: "var", type: "number" },
+            { name: "var2", type: "number" },
         ],
         returnType: "float",
-        documentation: "Divide two numbers and return a float",
+        documentation: "var / var2를 소수점 아래 5자리까지 계산합니다. 반환 타입은 float입니다.",
     },
     {
         name: "multiply",
@@ -255,11 +256,11 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             end: { line: 0, character: 0 },
         },
         params: [
-            { name: "a", type: "number" },
-            { name: "b", type: "number" },
+            { name: "var", type: "number" },
+            { name: "var2", type: "number" },
         ],
         returnType: "float",
-        documentation: "Multiply two numbers and return a float",
+        documentation: "var * var2를 소수점 아래 5자리까지 계산합니다. 반환 타입은 float입니다.",
     },
     {
         name: "int",
@@ -268,9 +269,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "int",
-        documentation: "Convert a value to an integer",
+        documentation: "a를 int 자료형으로 변환해줍니다. float/double의 경우 round(a)와 같습니다.",
     },
     {
         name: "float",
@@ -279,9 +280,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "float",
-        documentation: "Convert a value to a float",
+        documentation: "a를 float로 변환해줍니다.",
     },
     {
         name: "double",
@@ -290,9 +291,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "double",
-        documentation: "Convert a value to a double",
+        documentation: "a를 double로 변환해줍니다.",
     },
     {
         name: "bool",
@@ -301,9 +302,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "bool",
-        documentation: "Convert a value to a boolean",
+        documentation: "a를 bool로 변환해줍니다.",
     },
     {
         name: "string",
@@ -312,9 +313,9 @@ export const BUILTIN_FUNCTIONS: Symbol[] = [
             start: { line: 0, character: 0 },
             end: { line: 0, character: 0 },
         },
-        params: [{ name: "value" }],
+        params: [{ name: "a" }],
         returnType: "string",
-        documentation: "Convert a value to a string",
+        documentation: "a를 string으로 변환해줍니다.",
     },
 ];
 
@@ -337,6 +338,81 @@ export class ScopeAnalyzer {
 
     analyze(program: AST.Program): Scope {
         this.globalScope.range = program.range;
+        
+        // 1차 패스: 모든 함수 정의를 먼저 등록
+        for (const stmt of program.body) {
+            if (stmt.type === "FuncDeclaration") {
+                const params: ParamInfo[] = stmt.params.map(p => ({
+                    name: p.name.name,
+                    type: p.paramType || undefined,
+                }));
+
+                this.globalScope.define({
+                    name: stmt.name.name,
+                    kind: "function",
+                    declarationRange: stmt.name.range,
+                    params,
+                    returnType: stmt.returnType || undefined,
+                    documentation: stmt.documentation || undefined,
+                });
+            }
+        }
+
+        // 1.5차 패스: 등록된 함수들의 반환 타입 추론 (상호 참조 지원)
+        const inference = new TypeInference();
+        let changed = true;
+        let iterations = 0;
+        
+        while (changed && iterations < 5) {
+            changed = false;
+            for (const stmt of program.body) {
+                if (stmt.type === "FuncDeclaration" && !stmt.returnType) {
+                    const symbol = this.globalScope.resolveLocal(stmt.name.name);
+                    if (symbol) {
+                        // 함수 내부 스코프를 임시로 생성하여 매개변수와 지역 변수 파악
+                        const tempScope = new Scope(stmt.body.range, this.globalScope);
+                        
+                        for (const p of stmt.params) {
+                            tempScope.define({
+                                name: p.name.name,
+                                kind: "parameter",
+                                declarationRange: p.name.range,
+                                returnType: p.paramType || undefined
+                            });
+                        }
+
+                        for (const s of stmt.body.body) {
+                            if (s.type === "VarDeclaration") {
+                                let vType = s.varType || undefined;
+                                if (!vType && s.init) {
+                                    vType = inference.infer(s.init, tempScope);
+                                }
+                                tempScope.define({
+                                    name: s.name.name,
+                                    kind: "variable",
+                                    declarationRange: s.name.range,
+                                    returnType: vType
+                                });
+                            }
+                        }
+                        
+                        const inferredType = inference.inferReturnType(stmt, tempScope);
+                        const newType = (inferredType === "any" || inferredType === "void") ? undefined : inferredType;
+                        
+                        if (symbol.returnType !== newType && newType !== undefined) {
+                            symbol.returnType = newType;
+                            changed = true;
+                        } else if (iterations === 4 && symbol.returnType === undefined) {
+                            // 마지막 반복에서도 추론 실패 시 void 처리 (또는 any)
+                            symbol.returnType = inferredType;
+                        }
+                    }
+                }
+            }
+            iterations++;
+        }
+
+        // 2차 패스: 전체 본문 분석 (함수 내부 포함)
         this.visitProgram(program);
         return this.globalScope;
     }
@@ -347,7 +423,12 @@ export class ScopeAnalyzer {
 
     private visitProgram(node: AST.Program): void {
         for (const stmt of node.body) {
-            this.visitStatement(stmt);
+            // 이미 1차 패스에서 처리한 함수 선언은 본문 내부 분석만 수행
+            if (stmt.type === "FuncDeclaration") {
+                this.visitFuncBody(stmt);
+            } else {
+                this.visitStatement(stmt);
+            }
         }
     }
 
@@ -383,17 +464,27 @@ export class ScopeAnalyzer {
                 this.visitBlockStatement(node);
                 break;
             default:
-                
                 break;
         }
     }
 
     private visitVarDeclaration(node: AST.VarDeclaration): void {
+        let typeStr: string | undefined = node.varType || undefined;
+        
+        // 만약 타입이 명시되지 않았고 초기화 식이 있다면 타입 추론 시도
+        if (!typeStr && node.init) {
+            const inference = new TypeInference();
+            // 주의: 여기서의 inference.infer는 아직 모든 함수 타입이 결정되지 않았을 수 있음
+            // 하지만 기본 리터럴 등은 추론 가능
+            typeStr = inference.infer(node.init, this.currentScope);
+        }
+
         this.currentScope.define({
             name: node.name.name,
             kind: "variable",
             declarationRange: node.name.range,
-            returnType: node.varType || undefined,
+            returnType: typeStr,
+            documentation: node.documentation || undefined,
         });
 
         if (node.init) {
@@ -401,28 +492,11 @@ export class ScopeAnalyzer {
         }
     }
 
-    private visitFuncDeclaration(node: AST.FuncDeclaration): void {
-        
-        const params: ParamInfo[] = node.params.map(p => ({
-            name: p.name.name,
-            type: p.paramType || undefined,
-        }));
-
-        this.currentScope.define({
-            name: node.name.name,
-            kind: "function",
-            declarationRange: node.name.range,
-            params,
-            returnType: node.returnType || undefined,
-            documentation: node.documentation || undefined,
-        });
-
-        
+    private visitFuncBody(node: AST.FuncDeclaration): void {
         const funcScope = new Scope(node.body.range, this.currentScope);
         const previousScope = this.currentScope;
         this.currentScope = funcScope;
 
-        
         for (const param of node.params) {
             funcScope.define({
                 name: param.name.name,
@@ -432,12 +506,38 @@ export class ScopeAnalyzer {
             });
         }
 
-        
         for (const stmt of node.body.body) {
             this.visitStatement(stmt);
         }
 
         this.currentScope = previousScope;
+    }
+
+    private visitFuncDeclaration(node: AST.FuncDeclaration): void {
+        // 이미 1차 패스(analyze 메서드)에서 전역 함수는 등록됨.
+        // 하지만 중첩 함수의 경우 여기서 처리 필요할 수 있음.
+        // 현재는 전역 함수 위주로 처리.
+        
+        const existing = this.currentScope.resolveLocal(node.name.name);
+        if (!existing) {
+            const params: ParamInfo[] = node.params.map(p => ({
+                name: p.name.name,
+                type: p.paramType || undefined,
+            }));
+            const inference = new TypeInference();
+            const returnType = node.returnType || inference.inferReturnType(node, this.currentScope);
+
+            this.currentScope.define({
+                name: node.name.name,
+                kind: "function",
+                declarationRange: node.name.range,
+                params,
+                returnType: returnType || undefined,
+                documentation: node.documentation || undefined,
+            });
+        }
+
+        this.visitFuncBody(node);
     }
 
     private visitIfStatement(node: AST.IfStatement): void {

@@ -4,6 +4,7 @@ import { SemanticTokensProvider, LEGEND } from "./providers/semanticTokens";
 import { DiagnosticGenerator } from "./analysis/diagnostics";
 import { CompletionProvider } from "./providers/completion";
 import { HoverProvider } from "./providers/hover";
+import { InlayHintProvider } from "./providers/inlayHint";
 import { DefinitionProvider } from "./providers/definition";
 import { DocumentSymbolProvider } from "./providers/documentSymbol";
 import { getSpyglassManager } from "./minecraft/spyglass";
@@ -47,6 +48,14 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerHoverProvider(
             { language: "comet" },
             hoverProvider
+        )
+    );
+
+    const inlayHintProvider = new InlayHintProvider(documentManager);
+    context.subscriptions.push(
+        vscode.languages.registerInlayHintsProvider(
+            { language: "comet" },
+            inlayHintProvider
         )
     );
 

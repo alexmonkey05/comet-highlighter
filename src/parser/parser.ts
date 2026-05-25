@@ -148,6 +148,7 @@ export class Parser {
 
     private parseVarDeclaration(): AST.VarDeclaration {
         const start = this.previous();
+        const doc = this.getDocumentation(start);
 
         if (!this.check(TokenType.Identifier)) {
             this.error(vscode.l10n.t("Expected variable name"));
@@ -160,6 +161,7 @@ export class Parser {
                 },
                 varType: null,
                 init: null,
+                documentation: doc,
                 range: start.range,
             };
         }
@@ -188,6 +190,7 @@ export class Parser {
             name,
             varType,
             init,
+            documentation: doc,
             range: this.makeRange(start),
         };
     }

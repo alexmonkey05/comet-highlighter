@@ -59,9 +59,23 @@ export class HoverProvider implements vscode.HoverProvider {
 
         switch (symbol.kind) {
             case "function":
+                let funcReturnTypeStr = symbol.returnType || "";
+                if (!funcReturnTypeStr) {
+                    const funcNode = this.findFuncDeclarationNode(
+                        parseResult.program,
+                        symbol.declarationRange
+                    );
+                    if (funcNode) {
+                        funcReturnTypeStr = this.typeInference.inferReturnType(
+                            funcNode,
+                            parseResult.scope
+                        );
+                    }
+                }
+
                 const funcSignature = `def ${symbol.name}(${this.formatParams(symbol.params || [])})`;
-                const funcReturnType = symbol.returnType
-                    ? ` → ${symbol.returnType}`
+                const funcReturnType = funcReturnTypeStr
+                    ? ` → ${funcReturnTypeStr}`
                     : "";
                 markdown.appendCodeblock(funcSignature + funcReturnType, "comet");
                 if (symbol.documentation) {
@@ -81,23 +95,28 @@ export class HoverProvider implements vscode.HoverProvider {
                 break;
 
             case "variable":
-                let typeStr = "any";
+                let typeStr = symbol.returnType || "any";
 
-                const declNode = this.findDeclarationNode(
-                    parseResult.program,
-                    symbol.declarationRange
-                );
-                if (declNode && declNode.init) {
-                    typeStr = this.typeInference.infer(
-                        declNode.init,
-                        parseResult.scope
+                if (typeStr === "any") {
+                    const declNode = this.findDeclarationNode(
+                        parseResult.program,
+                        symbol.declarationRange
                     );
+                    if (declNode && declNode.init) {
+                        typeStr = this.typeInference.infer(
+                            declNode.init,
+                            parseResult.scope
+                        );
+                    }
                 }
 
                 markdown.appendCodeblock(
                     `var ${symbol.name}: ${typeStr}`,
                     "comet"
                 );
+                if (symbol.documentation) {
+                    markdown.appendMarkdown("\n\n" + symbol.documentation);
+                }
                 const varLine = symbol.declarationRange.start.line + 1;
                 markdown.appendMarkdown(
                     `\n\n${vscode.l10n.t("Declared at line {0}", varLine)}`
@@ -198,6 +217,43 @@ export class HoverProvider implements vscode.HoverProvider {
         return params
             .map(p => (p.type ? `${p.name}: ${p.type}` : p.name))
             .join(", ");
+    }
+
+    private findFuncDeclarationNode(
+        program: AST.Program,
+        range: Range
+    ): AST.FuncDeclaration | null {
+        let found: AST.FuncDeclaration | null = null;
+
+        const visit = (node: any) => {
+            if (found) return;
+            if (!node || typeof node !== "object") return;
+
+            if (
+                node.type === "FuncDeclaration" &&
+                node.name &&
+                node.name.range
+            ) {
+                const r = node.name.range;
+                if (
+                    r.start.line === range.start.line &&
+                    r.start.character === range.start.character
+                ) {
+                    found = node;
+                    return;
+                }
+            }
+
+            for (const key in node) {
+                if (key === "range" || key === "type") continue;
+                const val = node[key];
+                if (Array.isArray(val)) val.forEach(visit);
+                else if (typeof val === "object") visit(val);
+            }
+        };
+
+        visit(program);
+        return found;
     }
 
     private findDeclarationNode(
