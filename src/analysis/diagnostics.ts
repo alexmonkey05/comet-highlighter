@@ -108,12 +108,44 @@ export class DiagnosticGenerator {
     }
 
     private visitVarDeclaration(node: AST.VarDeclaration): void {
+        if (this.currentScope) {
+            const existing = this.currentScope.resolveLocal(
+                node.name.name,
+                node.name.range.start
+            );
+            if (existing) {
+                this.addDiagnostic(
+                    node.name.range,
+                    vscode.l10n.t(
+                        "Identifier '{0}' is already defined",
+                        node.name.name
+                    ),
+                    vscode.DiagnosticSeverity.Error
+                );
+            }
+        }
         if (node.init) {
             this.visitExpression(node.init);
         }
     }
 
     private visitFuncDeclaration(node: AST.FuncDeclaration): void {
+        if (this.currentScope) {
+            const existing = this.currentScope.resolveLocal(
+                node.name.name,
+                node.name.range.start
+            );
+            if (existing) {
+                this.addDiagnostic(
+                    node.name.range,
+                    vscode.l10n.t(
+                        "Identifier '{0}' is already defined",
+                        node.name.name
+                    ),
+                    vscode.DiagnosticSeverity.Error
+                );
+            }
+        }
         if (node.name.name.length > 0 && /^[A-Z]/.test(node.name.name)) {
             this.addDiagnostic(
                 node.name.range,
@@ -466,7 +498,7 @@ export class DiagnosticGenerator {
         }
 
         if (this.currentScope) {
-            const symbol = this.currentScope.resolve(node.name);
+            const symbol = this.currentScope.resolve(node.name, node.range.start);
             if (!symbol) {
                 this.addDiagnostic(
                     node.range,
@@ -480,7 +512,10 @@ export class DiagnosticGenerator {
     private visitCallExpression(node: AST.CallExpression): void {
         if (node.callee.type === "Identifier") {
             if (this.currentScope) {
-                const symbol = this.currentScope.resolve(node.callee.name);
+                const symbol = this.currentScope.resolve(
+                    node.callee.name,
+                    node.callee.range.start
+                );
                 if (!symbol) {
                     this.addDiagnostic(
                         node.callee.range,

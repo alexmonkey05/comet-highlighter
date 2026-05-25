@@ -49,7 +49,7 @@ export class HoverProvider implements vscode.HoverProvider {
         }
 
         const scope = parseResult.scope.findScope(pos);
-        const symbol = scope.resolve(name);
+        const symbol = scope.resolve(name, pos);
         if (!symbol) {
             return null;
         }
@@ -100,7 +100,7 @@ export class HoverProvider implements vscode.HoverProvider {
                 if (typeStr === "any") {
                     const declNode = this.findDeclarationNode(
                         parseResult.program,
-                        symbol.declarationRange
+                        symbol.originalRange || symbol.declarationRange
                     );
                     if (declNode && declNode.init) {
                         typeStr = this.typeInference.infer(
@@ -110,14 +110,17 @@ export class HoverProvider implements vscode.HoverProvider {
                     }
                 }
 
-                markdown.appendCodeblock(
-                    `var ${symbol.name}: ${typeStr}`,
-                    "comet"
-                );
+                let displayStr = `var ${symbol.name}: ${typeStr}`;
+                if (symbol.value !== undefined) {
+                    displayStr += ` = ${symbol.value}`;
+                }
+
+                markdown.appendCodeblock(displayStr, "comet");
                 if (symbol.documentation) {
                     markdown.appendMarkdown("\n\n" + symbol.documentation);
                 }
-                const varLine = symbol.declarationRange.start.line + 1;
+                const varLine =
+                    (symbol.originalRange || symbol.declarationRange).start.line + 1;
                 markdown.appendMarkdown(
                     `\n\n${vscode.l10n.t("Declared at line {0}", varLine)}`
                 );

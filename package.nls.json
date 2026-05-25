@@ -26,6 +26,7 @@
     "diagnostic.elseNoBraces": "Else statement body should be enclosed in braces",
     "diagnostic.returnOutsideFunction": "return statement outside of function",
     "diagnostic.breakOutsideLoop": "break statement outside of loop",
+    "diagnostic.alreadyDefined": "Identifier '{0}' is already defined",
     "diagnostic.undefinedIdentifier": "Undefined identifier: {0}",
     "diagnostic.undefinedFunction": "Undefined function: {0}",
     "diagnostic.expectedArguments": "Expected {0} arguments, got {1}",

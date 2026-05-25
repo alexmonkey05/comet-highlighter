@@ -16,8 +16,10 @@ export interface Symbol {
     name: string;
     kind: SymbolKind;
     declarationRange: Range;
+    originalRange?: Range;
     params?: ParamInfo[];
     returnType?: string;
+    value?: string;
     documentation?: string;
     
     scope?: string; 
@@ -31,7 +33,7 @@ export interface ParamInfo {
 export class Scope {
     parent: Scope | null = null;
     children: Scope[] = [];
-    symbols: Map<string, Symbol> = new Map();
+    symbols: Map<string, Symbol[]> = new Map();
     range: Range;
 
     constructor(range: Range, parent: Scope | null = null) {
@@ -43,22 +45,55 @@ export class Scope {
     }
 
     define(symbol: Symbol): void {
-        this.symbols.set(symbol.name, symbol);
+        let list = this.symbols.get(symbol.name);
+        if (!list) {
+            list = [];
+            this.symbols.set(symbol.name, list);
+        }
+        list.push(symbol);
     }
 
-    resolve(name: string): Symbol | null {
-        const symbol = this.symbols.get(name);
-        if (symbol) {
-            return symbol;
+    resolve(name: string, pos?: { line: number; character: number }): Symbol | null {
+        const list = this.symbols.get(name);
+        if (list) {
+            if (pos) {
+                for (let i = list.length - 1; i >= 0; i--) {
+                    const s = list[i];
+                    if (this.isBefore(s.declarationRange.end, pos)) {
+                        return s;
+                    }
+                }
+            } else {
+                return list[list.length - 1];
+            }
         }
         if (this.parent) {
-            return this.parent.resolve(name);
+            return this.parent.resolve(name, pos);
         }
         return null;
     }
 
-    resolveLocal(name: string): Symbol | null {
-        return this.symbols.get(name) || null;
+    resolveLocal(name: string, pos?: { line: number; character: number }): Symbol | null {
+        const list = this.symbols.get(name);
+        if (list) {
+            if (pos) {
+                for (let i = list.length - 1; i >= 0; i--) {
+                    const s = list[i];
+                    if (this.isBefore(s.declarationRange.end, pos)) {
+                        return s;
+                    }
+                }
+            } else {
+                return list[list.length - 1];
+            }
+        }
+        return null;
+    }
+
+    private isBefore(a: { line: number; character: number }, b: { line: number; character: number }): boolean {
+        if (a.line < b.line) return true;
+        if (a.line > b.line) return false;
+        return a.character <= b.character;
     }
 
     findScope(pos: { line: number; character: number }): Scope {
@@ -476,20 +511,28 @@ export class ScopeAnalyzer {
 
     private visitVarDeclaration(node: AST.VarDeclaration): void {
         let typeStr: string | undefined = node.varType || undefined;
+        let valueStr: string | undefined = undefined;
         
+        const inference = new TypeInference();
+
         // 만약 타입이 명시되지 않았고 초기화 식이 있다면 타입 추론 시도
         if (!typeStr && node.init) {
-            const inference = new TypeInference();
-            // 주의: 여기서의 inference.infer는 아직 모든 함수 타입이 결정되지 않았을 수 있음
-            // 하지만 기본 리터럴 등은 추론 가능
             typeStr = inference.infer(node.init, this.currentScope);
+        }
+
+        if (node.init) {
+            valueStr = inference.evaluate(node.init, this.currentScope) || undefined;
+        } else if (typeStr === "int") {
+            valueStr = "0";
         }
 
         this.currentScope.define({
             name: node.name.name,
             kind: "variable",
             declarationRange: node.name.range,
+            originalRange: node.name.range,
             returnType: typeStr,
+            value: valueStr,
             documentation: node.documentation || undefined,
         });
 
@@ -508,6 +551,7 @@ export class ScopeAnalyzer {
                 name: param.name.name,
                 kind: "parameter",
                 declarationRange: param.name.range,
+                originalRange: param.name.range,
                 returnType: param.paramType || undefined,
             });
         }
@@ -537,6 +581,7 @@ export class ScopeAnalyzer {
                 name: node.name.name,
                 kind: "function",
                 declarationRange: node.name.range,
+                originalRange: node.name.range,
                 params,
                 returnType: returnType || undefined,
                 documentation: node.documentation || undefined,
@@ -570,6 +615,7 @@ export class ScopeAnalyzer {
             name: node.source.name,
             kind: "import",
             declarationRange: node.source.range,
+            originalRange: node.source.range,
         });
     }
 
@@ -610,6 +656,25 @@ export class ScopeAnalyzer {
                 break;
             case "AssignmentExpression":
                 this.visitExpression(node.value);
+                if (node.target.type === "Identifier") {
+                    const symbol = this.currentScope.resolve(
+                        node.target.name,
+                        node.range.start
+                    );
+                    if (symbol && symbol.kind === "variable") {
+                        const val = new TypeInference().evaluate(
+                            node.value,
+                            this.currentScope
+                        );
+                        this.currentScope.define({
+                            ...symbol,
+                            value: val || undefined,
+                            declarationRange: node.target.range,
+                            originalRange:
+                                symbol.originalRange || symbol.declarationRange,
+                        });
+                    }
+                }
                 break;
             case "CallExpression":
                 

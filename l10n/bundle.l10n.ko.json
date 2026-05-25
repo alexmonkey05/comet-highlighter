@@ -22,6 +22,7 @@
     "Else statement body should be enclosed in braces": "else 문의 본문은 중괄호로 감싸야 합니다",
     "return statement outside of function": "함수 밖에서 return 문을 사용할 수 없습니다",
     "break statement outside of loop": "반복문 밖에서 break 문을 사용할 수 없습니다",
+    "Identifier '{0}' is already defined": "'{0}' 식별자가 이미 정의되어 있습니다",
     "Undefined identifier: {0}": "정의되지 않은 식별자: {0}",
     "Undefined function: {0}": "정의되지 않은 함수: {0}",
     "Expected {0} arguments, got {1}": "{0}개의 인자가 필요합니다. 입력: {1}개",

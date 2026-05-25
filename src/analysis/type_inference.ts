@@ -91,6 +91,32 @@ export class TypeInference {
         }
     }
 
+    evaluate(node: AST.Expression, scope: Scope): string | null {
+        switch (node.type) {
+            case "IntLiteral":
+            case "FloatLiteral":
+            case "DoubleLiteral":
+            case "StringLiteral":
+            case "BoolLiteral":
+                return node.raw;
+            case "Identifier": {
+                const symbol = scope.resolve(node.name, node.range.start);
+                return symbol?.value || null;
+            }
+            case "ParenExpression":
+                return this.evaluate(node.expression, scope);
+            case "UnaryExpression": {
+                if (node.operator === "-") {
+                    const val = this.evaluate(node.argument, scope);
+                    if (val !== null) return "-" + val;
+                }
+                return null;
+            }
+            default:
+                return null;
+        }
+    }
+
     inferReturnType(node: AST.FuncDeclaration, scope: Scope): string {
         if (node.returnType) return node.returnType;
 

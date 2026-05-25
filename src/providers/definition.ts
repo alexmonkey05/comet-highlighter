@@ -41,7 +41,7 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
         }
 
         const scope = parseResult.scope.findScope(pos);
-        const symbol = scope.resolve(name);
+        const symbol = scope.resolve(name, pos);
         if (!symbol || symbol.kind === "builtin") {
             return null;
         }
@@ -57,7 +57,7 @@ export class DefinitionProvider implements vscode.DefinitionProvider {
 
         return new vscode.Location(
             document.uri,
-            rangeToVscodeRange(symbol.declarationRange)
+            rangeToVscodeRange(symbol.originalRange || symbol.declarationRange)
         );
     }
 
